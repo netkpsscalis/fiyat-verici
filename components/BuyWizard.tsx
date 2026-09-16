@@ -8,9 +8,9 @@ import { AddVariantChips } from "@/components/AddVariantChips";
 import { Chip } from "@/components/Chip";
 import { ListingPasteBox } from "@/components/ListingPasteBox";
 import { ModelPicker, rememberModel } from "@/components/ModelPicker";
-import { CONFIDENCE_LABELS, PriceTag } from "@/components/PriceTag";
+import { BuyTag } from "@/components/BuyTag";
 import { RefreshSourcesButton } from "@/components/RefreshSourcesButton";
-import { adjustmentText, formatAge, formatTL, parsePrice, variantLabel } from "@/lib/format";
+import { adjustmentText, formatTL, parsePrice, variantLabel } from "@/lib/format";
 import {
   adjustmentFor,
   defaultSelection,
@@ -20,7 +20,7 @@ import {
   type Overrides,
   type Selection,
 } from "@/lib/pricing/conditions";
-import { computeBuyQuote, type BuyQuote } from "@/lib/pricing/engine";
+import { computeBuyQuote, offersFromResale, type BuyQuote, type PriceTriple } from "@/lib/pricing/engine";
 import type { PricingSettings } from "@/lib/pricing/settings";
 import type { CatalogBrand, CatalogModel, ObservationDTO } from "@/lib/types";
 
@@ -38,6 +38,9 @@ export function BuyWizard({
   const [selection, setSelection] = useState<Selection>({});
   const [market, setMarket] = useState<{ variantId: string; rows: ObservationDTO[] } | null>(null);
   const [loading, startLoading] = useTransition();
+  /** "Bu cihazı kaça satarım": kullanıcının kendi satış tahmini, hafıza değişince sıfırlanır */
+  const [own, setOwn] = useState<{ variantId: string | null; text: string }>({ variantId: null, text: "" });
+  const ownPriceText = own.variantId === variantId ? own.text : "";
 
   useEffect(() => {
     if (!variantId) return;
@@ -94,6 +97,20 @@ export function BuyWizard({
       return { ...prev, [factorId]: cur.includes(optionId) ? cur.filter((x) => x !== optionId) : [...cur, optionId] };
     });
   }
+
+  const ownResale = parsePrice(ownPriceText);
+  const ownOffers = useMemo(
+    () => (model && ownResale ? offersFromResale(ownResale, settings, model.brandId).offers : null),
+    [model, ownResale, settings],
+  );
+  const tagProps = {
+    quote,
+    loading,
+    ownPriceText,
+    onOwnPriceChange: (text: string) => setOwn({ variantId, text }),
+    ownOffers,
+    ownResale,
+  };
 
   const variant = model?.variants.find((v) => v.id === variantId) ?? null;
   const allModels = useMemo(() => catalog.flatMap((b) => b.models), [catalog]);
@@ -203,13 +220,25 @@ export function BuyWizard({
                 <h2 id="dokum-baslik" className="eyebrow border-b border-line pb-2 text-muted">
                   Bu fiyat nereden geldi?
                 </h2>
-                <BuyBreakdown quote={quote} settings={settings} brandId={model.brandId} />
-                {variantId && <QuoteActions quote={quote} variantId={variantId} selection={selection} />}
+                <BuyBreakdown
+                  quote={quote}
+                  settings={settings}
+                  brandId={model.brandId}
+                  own={ownResale && ownOffers ? { resale: ownResale, offers: ownOffers } : null}
+                />
+                {variantId && (
+                  <QuoteActions
+                    quote={quote}
+                    variantId={variantId}
+                    selection={selection}
+                    own={ownResale && ownOffers ? { resale: ownResale, offers: ownOffers } : null}
+                  />
+                )}
               </section>
             )}
 
             {/* Telefonda altta sabit duran etiketin arkasında içerik kalmasın */}
-            {variantId && <div aria-hidden className="h-44 lg:hidden" />}
+            {variantId && <div aria-hidden className="h-60 lg:hidden" />}
           </>
         )}
       </div>
@@ -217,75 +246,14 @@ export function BuyWizard({
       {model && variantId && (
         <>
           <aside className="hidden lg:sticky lg:top-8 lg:block">
-            <BuyTag quote={quote} title={tagTitle} loading={loading} variantId={variantId} />
+            <BuyTag {...tagProps} title={tagTitle} />
           </aside>
           <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 px-2 pb-2 lg:hidden">
-            <BuyTag quote={quote} title={tagTitle} loading={loading} variantId={variantId} compact />
+            <BuyTag {...tagProps} title={tagTitle} compact />
           </div>
         </>
       )}
     </div>
-  );
-}
-
-function BuyTag({
-  quote,
-  title,
-  loading,
-  variantId,
-  compact,
-}: {
-  quote: BuyQuote | null;
-  title: string;
-  loading: boolean;
-  variantId: string;
-  compact?: boolean;
-}) {
-  const blocked = quote?.adjustments.blocked.length ? quote.adjustments.blocked.join(", ") : undefined;
-  const missing = quote?.adjustments.missing ?? [];
-  const ref = quote?.reference;
-
-  return (
-    <PriceTag
-      compact={compact}
-      title="Alış teklifi"
-      subtitle={title}
-      prices={quote?.offers ?? null}
-      notes={
-        quote?.offers && quote.resale !== null
-          ? [
-              `kâr ${formatTL(quote.resale - quote.offers.min)}`,
-              `kâr ${formatTL(quote.resale - quote.offers.mid)}`,
-              `kâr ${formatTL(quote.resale - quote.offers.max)}`,
-            ]
-          : undefined
-      }
-      loading={loading}
-      blocked={blocked}
-      empty={
-        !quote ? (
-          "Fiyatlar yükleniyor…"
-        ) : (
-          <span>Bu model için fiyat verisi yok. “İlan fiyatlarını yapıştır” ile ekle.</span>
-        )
-      }
-      footer={
-        quote?.offers && ref ? (
-          <div className="flex items-center justify-between gap-2">
-            <span className="truncate">
-              {missing.length > 0 && <strong className="text-tag-alert">{missing.join(", ")} seçilmedi · </strong>}
-              Satış tahmini <strong className="num text-sm">{formatTL(quote.resale)}</strong> · {CONFIDENCE_LABELS[ref.confidence]} ·{" "}
-              {ref.sampleCount} fiyat · {formatAge(ref.newestAgeDays)}
-            </span>
-            {compact && (
-              <a href="#dokum" className="shrink-0 font-semibold underline underline-offset-2">
-                Döküm
-              </a>
-            )}
-          </div>
-        ) : undefined
-      }
-    />
   );
 }
 
@@ -299,7 +267,17 @@ function FactorBlock({ label, help, children }: { label: string; help?: string; 
   );
 }
 
-function QuoteActions({ quote, variantId, selection }: { quote: BuyQuote; variantId: string; selection: Selection }) {
+function QuoteActions({
+  quote,
+  variantId,
+  selection,
+  own,
+}: {
+  quote: BuyQuote;
+  variantId: string;
+  selection: Selection;
+  own: { resale: number; offers: PriceTriple } | null;
+}) {
   const [quoteId, setQuoteId] = useState<number | null>(null);
   const [buyPrice, setBuyPrice] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "stop"; text: string } | null>(null);
@@ -311,8 +289,10 @@ function QuoteActions({ quote, variantId, selection }: { quote: BuyQuote; varian
     setMessage(null);
   }, [variantId, selection]);
 
-  if (!quote.offers) return null;
-  const offers = quote.offers;
+  // Piyasa verisi yoksa kendi yazdığın fiyattan hesaplanan teklif kullanılır
+  const available = quote.offers ?? own?.offers;
+  if (!available) return null;
+  const offers: PriceTriple = available;
 
   function save() {
     start(async () => {
@@ -320,7 +300,13 @@ function QuoteActions({ quote, variantId, selection }: { quote: BuyQuote; varian
         mode: "buy",
         variantId,
         input: { selection },
-        result: { offers, resale: quote.resale, reference: quote.reference.value, confidence: quote.reference.confidence },
+        result: {
+          offers: quote.offers,
+          resale: quote.resale,
+          reference: quote.reference.value,
+          confidence: quote.reference.confidence,
+          own: own ? { resale: own.resale, offers: own.offers } : null,
+        },
       });
       if (res.ok) {
         setQuoteId(res.data.id);

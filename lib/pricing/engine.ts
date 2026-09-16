@@ -220,7 +220,6 @@ export function computeBuyQuote(input: {
     releaseYear: input.releaseYear,
     brandId: input.brandId,
   });
-  const group = s.groups[brandGroupOf(input.brandId)];
   const adjustments = computeAdjustments(input.family, input.selection, input.overrides);
   const warnings: string[] = [];
 
@@ -252,21 +251,39 @@ export function computeBuyQuote(input: {
   }
 
   const resale = Math.max(0, reference.value * adjustments.multiplier - adjustments.fixedTotal);
-  const m = group.margins;
-  const max = Math.max(0, Math.min(resale * (1 - m.max / 100), resale - group.minProfit));
-  const min = Math.min(max, resale * (1 - m.min / 100));
-  let mid = resale * (1 - m.mid / 100);
-  if (competitor) mid = (mid + competitor.adjusted) / 2;
-  mid = Math.min(max, Math.max(min, mid));
-
-  if (resale - max < group.minProfit) warnings.push("Kâr payı en az kâr tutarının altında kalıyor.");
+  const own = offersFromResale(resale, s, input.brandId, competitor?.adjusted);
+  warnings.push(...own.warnings);
 
   return {
     reference,
     adjustments,
     resale: roundPrice(resale),
-    offers: { min: roundPrice(min, "down"), mid: roundPrice(mid, "down"), max: roundPrice(max, "down") },
+    offers: own.offers,
     competitor,
+    warnings,
+  };
+}
+
+/**
+ * Satış fiyatından alış teklifleri: marka grubunun kâr payları ve en az kâr.
+ * Kullanıcının "bunu kaça satarım" diye yazdığı fiyat da buradan geçer.
+ */
+export function offersFromResale(
+  resale: number,
+  settings: PricingSettings,
+  brandId: string,
+  competitorAdjusted?: number,
+): { offers: PriceTriple; warnings: string[] } {
+  const group = settings.groups[brandGroupOf(brandId)];
+  const m = group.margins;
+  const max = Math.max(0, Math.min(resale * (1 - m.max / 100), resale - group.minProfit));
+  const min = Math.min(max, resale * (1 - m.min / 100));
+  let mid = resale * (1 - m.mid / 100);
+  if (competitorAdjusted !== undefined) mid = (mid + competitorAdjusted) / 2;
+  mid = Math.min(max, Math.max(min, mid));
+  const warnings = resale - max < group.minProfit ? ["Kâr payı en az kâr tutarının altında kalıyor."] : [];
+  return {
+    offers: { min: roundPrice(min, "down"), mid: roundPrice(mid, "down"), max: roundPrice(max, "down") },
     warnings,
   };
 }

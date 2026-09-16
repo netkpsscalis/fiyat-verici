@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultSelection } from "./conditions";
-import { computeAdjustments, computeBuyQuote, computeReference, type Observation } from "./engine";
+import { computeAdjustments, computeBuyQuote, computeReference, offersFromResale, type Observation } from "./engine";
 import { DEFAULT_SETTINGS } from "./settings";
 import { DAY_MS, filterOutliers, roundPrice, weightedMedian } from "./stats";
 
@@ -209,5 +209,13 @@ describe("computeBuyQuote", () => {
     const q = computeBuyQuote({ ...input, observations: [] });
     expect(q.offers).toBeNull();
     expect(q.warnings.join(" ")).toMatch(/fiyat verisi yok/);
+  });
+});
+
+describe("offersFromResale", () => {
+  it("kullanıcının yazdığı satış fiyatına sadece kâr payı uygular", () => {
+    // Satış oranı ve durum kesintisi yok: 28.000 doğrudan satış fiyatı
+    expect(offersFromResale(28_000, DEFAULT_SETTINGS, "samsung").offers).toEqual({ min: 21_750, mid: 23_000, max: 24_250 });
+    expect(offersFromResale(28_000, DEFAULT_SETTINGS, "apple").offers).toEqual({ min: 23_000, mid: 24_250, max: 25_000 });
   });
 });

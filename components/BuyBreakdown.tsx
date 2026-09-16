@@ -1,7 +1,7 @@
 import { ObservationList } from "@/components/ObservationList";
-import { CONFIDENCE_LABELS } from "@/components/PriceTag";
+import { CONFIDENCE_LABELS } from "@/components/BuyTag";
 import { adjustmentText, formatTL, sourceLabel } from "@/lib/format";
-import type { BuyQuote, Reference } from "@/lib/pricing/engine";
+import type { BuyQuote, PriceTriple, Reference } from "@/lib/pricing/engine";
 import { BRAND_GROUP_LABELS, brandGroupOf, type PricingSettings } from "@/lib/pricing/settings";
 
 export const METHOD_LABELS: Record<Reference["method"], string> = {
@@ -11,7 +11,17 @@ export const METHOD_LABELS: Record<Reference["method"], string> = {
 };
 
 /** "Bu fiyat nereden geldi?" dökümü */
-export function BuyBreakdown({ quote, settings, brandId }: { quote: BuyQuote; settings: PricingSettings; brandId: string }) {
+export function BuyBreakdown({
+  quote,
+  settings,
+  brandId,
+  own,
+}: {
+  quote: BuyQuote;
+  settings: PricingSettings;
+  brandId: string;
+  own: { resale: number; offers: PriceTriple } | null;
+}) {
   const { reference: ref, adjustments: adj } = quote;
   const groupId = brandGroupOf(brandId);
   const group = settings.groups[groupId];
@@ -68,32 +78,23 @@ export function BuyBreakdown({ quote, settings, brandId }: { quote: BuyQuote; se
       )}
 
       {quote.offers && quote.resale !== null && (
-        <div>
-          <p className="font-semibold">Teklif verirsen kârın</p>
-          <ul className="mt-1 divide-y divide-line rounded-lg border border-line bg-paper">
-            {(
-              [
-                ["En az", quote.offers.min],
-                ["Ortalama", quote.offers.mid],
-                ["En çok", quote.offers.max],
-              ] as const
-            ).map(([label, offer]) => (
-              <li key={label} className="flex justify-between gap-3 px-3 py-2">
-                <span>
-                  {label} <span className="num text-muted">{formatTL(offer)}</span>
-                </span>
-                <span className="num font-semibold text-ok">+{formatTL(quote.resale! - offer)}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1 text-muted">
-            {formatTL(quote.resale)}’ye satarsan. {BRAND_GROUP_LABELS[groupId]} kâr payları: en çok teklifte %{m.max},
-            ortalamada %{m.mid}, en azda %{m.min}; her cihazda en az {formatTL(group.minProfit)} kâr bırakılır.
-            {group.saleFactor < 1 &&
-              ` İlan fiyatının %${Math.round(group.saleFactor * 100)}’ine satılabileceği varsayıldı (pazarlık ve yavaş satış).`}{" "}
-            Pazarlıkta “En çok”un üstüne çıkma.
-          </p>
-        </div>
+        <ProfitList title="Piyasaya göre teklif verirsen kârın" resale={quote.resale} offers={quote.offers} />
+      )}
+      {own && (
+        <ProfitList title="Senin satış fiyatına göre kârın" resale={own.resale} offers={own.offers}>
+          Senin yazdığın satış fiyatı bu cihazın bu haliyle satış fiyatı sayılır: durum kesintisi ve satış oranı uygulanmaz,
+          sadece kâr payları düşülür.
+        </ProfitList>
+      )}
+
+      {(quote.offers || own) && (
+        <p className="text-muted">
+          {BRAND_GROUP_LABELS[groupId]} kâr payları: en çok teklifte %{m.max}, ortalamada %{m.mid}, en azda %{m.min}; her cihazda en
+          az {formatTL(group.minProfit)} kâr bırakılır.
+          {group.saleFactor < 1 &&
+            ` Piyasa satırında ilan fiyatının %${Math.round(group.saleFactor * 100)}’ine satılabileceği varsayıldı (pazarlık ve yavaş satış).`}{" "}
+          Pazarlıkta “En çok”un üstüne çıkma.
+        </p>
       )}
     </div>
   );
@@ -107,6 +108,44 @@ function Row({ label, value, children }: { label: string; value: string; childre
         {value && <p className="num text-lg font-bold">{value}</p>}
       </div>
       {children && <p className="mt-0.5 text-muted">{children}</p>}
+    </div>
+  );
+}
+
+function ProfitList({
+  title,
+  resale,
+  offers,
+  children,
+}: {
+  title: string;
+  resale: number;
+  offers: PriceTriple;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="font-semibold">{title}</p>
+        <p className="num text-muted">satış {formatTL(resale)}</p>
+      </div>
+      {children && <p className="mt-0.5 text-muted">{children}</p>}
+      <ul className="mt-1 divide-y divide-line rounded-lg border border-line bg-paper">
+        {(
+          [
+            ["En az", offers.min],
+            ["Ortalama", offers.mid],
+            ["En çok", offers.max],
+          ] as const
+        ).map(([label, offer]) => (
+          <li key={label} className="flex justify-between gap-3 px-3 py-2">
+            <span>
+              {label} <span className="num text-muted">{formatTL(offer)}</span>
+            </span>
+            <span className="num font-semibold text-ok">+{formatTL(resale - offer)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

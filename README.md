@@ -29,10 +29,13 @@ Telefona uygulama gibi kurulur (PWA).
    | Xiaomi / Redmi / POCO | %16 / %21 / %26 | %90 | 17.300 / 18.400 / 19.600 |
    | Diğer Android | %18 / %23 / %30 | %88 | |
 
-   Hepsi Ayarlar'dan değiştirilir. Kendi satış kayıtlarına satış oranı uygulanmaz. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır. Her cihazda en az kâr
+   Hepsi Ayarlar'dan değiştirilir. Kendi satış kayıtlarına satış oranı uygulanmaz.
+4. **Senin fiyatın:** Sarı etikette "Senin fiyatın" kutusuna cihazı kaça satacağını yazarsan, ikinci satırda o fiyattan
+   hesaplanan teklifler çıkar. Bu fiyat cihazın bu haliyle satış fiyatı sayılır: sadece marka grubunun kâr payları ve en az
+   kâr uygulanır, durum kesintisi ve satış oranı uygulanmaz. Piyasa (Getmobil/ilan) satırı ayrı hesaplanır. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır. Her cihazda en az kâr
    tutarı korunur.
-4. **Güven:** Veri azsa ya da eskiyse uygulama uyarır.
-5. **Kendi işlemlerinden öğrenme:** Önerilen fiyatlarla senin gerçekten aldığın fiyatlar karşılaştırılır; sürekli yüksek ya da
+5. **Güven:** Veri azsa ya da eskiyse uygulama uyarır.
+6. **Kendi işlemlerinden öğrenme:** Önerilen fiyatlarla senin gerçekten aldığın fiyatlar karşılaştırılır; sürekli yüksek ya da
    düşük öneriyorsa katsayısını kendi düzeltir (en az 3 işlem gerekir).
 
 ## Kaynaklar
