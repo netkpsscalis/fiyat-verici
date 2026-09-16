@@ -4,6 +4,7 @@ import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { fetchMarket, recordTransaction } from "@/app/actions";
+import { AddVariantChips } from "@/components/AddVariantChips";
 import { Chip } from "@/components/Chip";
 import { ModelPicker, rememberModel } from "@/components/ModelPicker";
 import { ObservationList } from "@/components/ObservationList";
@@ -96,12 +97,18 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
 
             <div>
               <p className="font-semibold">{model.family === "iphone" ? "Hafıza" : "RAM ve hafıza"}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {model.variants.map((v) => (
-                  <Chip key={v.id} selected={v.id === variantId} onClick={() => setVariantId(v.id)}>
-                    {variantLabel(v)}
-                  </Chip>
-                ))}
+              <div className="mt-2">
+                {model.variants.length === 0 ? (
+                  <AddVariantChips modelId={model.id} family={model.family} onAdded={setVariantId} />
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {model.variants.map((v) => (
+                      <Chip key={v.id} selected={v.id === variantId} onClick={() => setVariantId(v.id)}>
+                        {variantLabel(v)}
+                      </Chip>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>

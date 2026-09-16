@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { fetchMarket, recordTransaction, saveQuote } from "@/app/actions";
 import { BuyBreakdown } from "@/components/BuyBreakdown";
+import { AddVariantChips } from "@/components/AddVariantChips";
 import { Chip } from "@/components/Chip";
 import { ModelPicker, rememberModel } from "@/components/ModelPicker";
 import { CONFIDENCE_LABELS, PriceTag } from "@/components/PriceTag";
@@ -127,13 +128,17 @@ export function BuyWizard({
             </section>
 
             <FactorBlock label={model.family === "iphone" ? "Hafıza" : "RAM ve hafıza"}>
-              <div className="flex flex-wrap gap-2">
-                {model.variants.map((v) => (
-                  <Chip key={v.id} selected={v.id === variantId} onClick={() => setVariantId(v.id)}>
-                    {variantLabel(v)}
-                  </Chip>
-                ))}
-              </div>
+              {model.variants.length === 0 ? (
+                <AddVariantChips modelId={model.id} family={model.family} onAdded={setVariantId} />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {model.variants.map((v) => (
+                    <Chip key={v.id} selected={v.id === variantId} onClick={() => setVariantId(v.id)}>
+                      {variantLabel(v)}
+                    </Chip>
+                  ))}
+                </div>
+              )}
             </FactorBlock>
 
             {variantId &&
