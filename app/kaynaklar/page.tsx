@@ -17,6 +17,8 @@ const DESCRIPTIONS: Record<string, string> = {
   getmobil: "Yenilenmiş cihaz satış fiyatları. Katalogdaki her model için Getmobil'deki ilanlar okunur.",
   vatan: "Vatan Bilgisayar'daki sıfır cihaz fiyatları (Apple, Samsung, Xiaomi kategorileri).",
   turkcell: "Turkcell Pasaj'daki sıfır cihaz fiyatları.",
+  arcelik: "Arçelik mağazasındaki sıfır cihaz fiyatları.",
+  beko: "Beko mağazasındaki sıfır cihaz fiyatları.",
   tracked: "Senin eklediğin ürün sayfaları (ör. apple.com/tr, samsung.com/tr).",
 };
 

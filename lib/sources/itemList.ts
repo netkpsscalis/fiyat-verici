@@ -1,21 +1,52 @@
 /**
- * Turkcell Pasaj sıfır cihaz fiyatları. Kategori sayfasında schema.org ItemList olarak
- * ürün adı + fiyat yayınlanıyor; kategori başına tek istek yeter.
+ * Kategori sayfasında schema.org ItemList yayınlayan mağazalar (Turkcell Pasaj, Arçelik, Beko).
+ * Ürün adı ve fiyatı hazır veride durduğu için kategori başına tek istek yeter.
  */
 import { createMatcher, tokenize } from "@/lib/parsers/normalize";
 import type { CatalogModel } from "@/lib/types";
+import type { WarrantyType } from "@/lib/db/schema";
 import { politeFetch } from "./http";
 import { extractJsonLd, parseNumber } from "./jsonld";
 import type { UnmatchedProduct } from "./unmatched";
 import { storageFromName } from "./vatan";
 
-export const TURKCELL_CATEGORIES = [
-  "https://www.turkcell.com.tr/pasaj/cep-telefonu",
-  "https://www.turkcell.com.tr/pasaj/cep-telefonu/ios-telefonlar",
-  "https://www.turkcell.com.tr/pasaj/cep-telefonu/android-telefonlar",
+export interface ItemListSite {
+  id: string;
+  label: string;
+  urls: string[];
+  /** Ürün adresleri göreliyse başına eklenir */
+  baseUrl?: string;
+  warranty: WarrantyType;
+}
+
+export const ITEMLIST_SITES: ItemListSite[] = [
+  {
+    id: "turkcell",
+    label: "Turkcell Pasaj",
+    warranty: "resmi",
+    urls: [
+      "https://www.turkcell.com.tr/pasaj/cep-telefonu",
+      "https://www.turkcell.com.tr/pasaj/cep-telefonu/ios-telefonlar",
+      "https://www.turkcell.com.tr/pasaj/cep-telefonu/android-telefonlar",
+    ],
+  },
+  {
+    id: "arcelik",
+    label: "Arçelik",
+    warranty: "resmi",
+    baseUrl: "https://www.arcelik.com.tr",
+    urls: ["https://www.arcelik.com.tr/cep-telefonu", "https://www.arcelik.com.tr/iphone-telefon-modelleri"],
+  },
+  {
+    id: "beko",
+    label: "Beko",
+    warranty: "resmi",
+    baseUrl: "https://www.beko.com.tr",
+    urls: ["https://www.beko.com.tr/cep-telefonu"],
+  },
 ];
 
-export interface TurkcellProduct {
+export interface ListedProduct {
   name: string;
   brand: string | null;
   price: number;
@@ -26,8 +57,8 @@ export interface TurkcellProduct {
 type Json = Record<string, unknown>;
 
 /** Sayfadaki ItemList içinden ürün adı, markası ve fiyatı */
-export function parseTurkcellProducts(html: string): TurkcellProduct[] {
-  const out: TurkcellProduct[] = [];
+export function parseItemListProducts(html: string, baseUrl?: string): ListedProduct[] {
+  const out: ListedProduct[] = [];
   for (const node of extractJsonLd(html)) {
     if (node["@type"] !== "ItemList" || !Array.isArray(node.itemListElement)) continue;
     for (const entry of node.itemListElement as Json[]) {
@@ -40,7 +71,7 @@ export function parseTurkcellProducts(html: string): TurkcellProduct[] {
         name: p.name,
         brand: typeof (p.brand as Json)?.name === "string" ? ((p.brand as Json).name as string) : null,
         price,
-        url: typeof p["@id"] === "string" ? p["@id"].replace(/#product$/, "") : null,
+        url: productUrl(p, baseUrl),
         inStock: !availability.includes("outofstock"),
       });
     }
@@ -48,21 +79,29 @@ export function parseTurkcellProducts(html: string): TurkcellProduct[] {
   return out;
 }
 
+function productUrl(p: Json, baseUrl?: string): string | null {
+  const offers = (Array.isArray(p.offers) ? p.offers[0] : p.offers) as Json | undefined;
+  const raw = [p["@id"], p.url, offers?.url].find((x) => typeof x === "string") as string | undefined;
+  if (!raw) return null;
+  const clean = raw.replace(/#product$/, "");
+  return clean.startsWith("http") ? clean : baseUrl ? `${baseUrl}${clean.startsWith("/") ? "" : "/"}${clean}` : null;
+}
+
 const BRAND_IDS: Record<string, string> = { apple: "apple", samsung: "samsung", xiaomi: "xiaomi", redmi: "xiaomi", poco: "xiaomi" };
 
-export interface TurkcellResult {
+export interface ListedResult {
   variantId: string;
   price: number;
   url: string | null;
   name: string;
 }
 
-export function matchTurkcellProducts(
-  products: TurkcellProduct[],
+export function matchListedProducts(
+  products: ListedProduct[],
   models: CatalogModel[],
-): { matched: TurkcellResult[]; unmatched: UnmatchedProduct[] } {
+): { matched: ListedResult[]; unmatched: UnmatchedProduct[] } {
   const match = createMatcher(models);
-  const best = new Map<string, TurkcellResult>();
+  const best = new Map<string, ListedResult>();
   const unmatched: UnmatchedProduct[] = [];
   for (const p of products) {
     if (!p.inStock) continue;
@@ -90,16 +129,17 @@ export function matchTurkcellProducts(
   return { matched: [...best.values()], unmatched };
 }
 
-export async function fetchTurkcell(
+export async function fetchItemListSite(
+  site: ItemListSite,
   models: CatalogModel[],
   log: (m: string) => void = () => {},
-): Promise<{ results: TurkcellResult[]; unmatched: UnmatchedProduct[] }> {
-  const seen = new Map<string, TurkcellResult>();
+): Promise<{ results: ListedResult[]; unmatched: UnmatchedProduct[] }> {
+  const seen = new Map<string, ListedResult>();
   const unmatched = new Map<string, UnmatchedProduct>();
-  for (const url of TURKCELL_CATEGORIES) {
+  for (const url of site.urls) {
     try {
-      const products = parseTurkcellProducts(await politeFetch(url, { delayMs: 4000 }));
-      const res = matchTurkcellProducts(products, models);
+      const products = parseItemListProducts(await politeFetch(url, { delayMs: 4000 }), site.baseUrl);
+      const res = matchListedProducts(products, models);
       for (const r of res.matched) {
         const cur = seen.get(r.variantId);
         if (!cur || r.price < cur.price) seen.set(r.variantId, r);

@@ -38,7 +38,7 @@ siteler atlatılmaya çalışılmaz.
 |---|---|
 | Getmobil (yenilenmiş satış fiyatları) | Otomatik, katalogdaki modellerin çoğu |
 | Vatan Bilgisayar (sıfır fiyat) | Otomatik, Apple / Samsung / Xiaomi kategori sayfaları |
-| Turkcell Pasaj (sıfır fiyat) | Otomatik, kategori sayfalarındaki ürün listesi |
+| Turkcell Pasaj, Arçelik, Beko (sıfır fiyat) | Otomatik, kategori sayfalarındaki ürün listesi |
 | apple.com/tr, samsung.com/tr (resmi sıfır fiyat) | Kaynaklar sayfasından ürün linki eklenerek |
 | Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt, PTT AVM, Teknosa, Sahibinden | Bot korumalı, otomatik okunamaz. Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusundan elle gir |
 | Toptancılar | Toptancı sekmesinden liste yükleyerek (metin, Excel, CSV, PDF ya da resim) |

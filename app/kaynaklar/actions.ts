@@ -6,7 +6,8 @@ import { z } from "zod";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { WARRANTY_TYPES } from "@/lib/db/schema";
-import { runGetmobil, runTracked, runTurkcell, runVatan, SOURCES } from "@/lib/sources/run";
+import { ITEMLIST_SITES } from "@/lib/sources/itemList";
+import { runGetmobil, runItemListSite, runTracked, runVatan, SOURCES } from "@/lib/sources/run";
 import type { ActionResult } from "@/lib/types";
 import { modelId as buildModelId, slug, variantId as buildVariantId } from "@/data/seed/devices";
 
@@ -63,12 +64,13 @@ export async function toggleSource(source: string, enabled: boolean): Promise<Ac
 export async function refreshAll(): Promise<ActionResult<{ message: string }>> {
   const { recalculateCalibration } = await import("@/lib/calibration");
   const v = await runVatan();
-  const t = await runTurkcell();
+  const stores = [];
+  for (const site of ITEMLIST_SITES) stores.push(await runItemListSite(site.id));
   const links = await runTracked();
   const cal = await recalculateCalibration();
   revalidatePath("/kaynaklar");
   revalidatePath("/piyasa");
-  const parts = [`Vatan: ${v.count}`, `Turkcell: ${t.count}`];
+  const parts = [`Vatan: ${v.count}`, ...stores.map((r) => `${r.source}: ${r.count}`)];
   if (links.count) parts.push(`Linkler: ${links.count}`);
   parts.push(cal.samples >= 3 ? `Düzeltme: ×${cal.factor} (${cal.samples} işlem)` : "Düzeltme: yeterli işlem yok");
   return { ok: true, data: { message: parts.join(" · ") } };
@@ -86,9 +88,11 @@ export async function refreshSources(input: { modelId: string; variantId?: strin
   parts.push(`Getmobil: ${g.ok ? (g.count ? `${g.count} hafıza` : "bu model yok") : g.message}`);
 
   const v = await runVatan();
-  parts.push(`Vatan: ${v.message}`);
-  const tc = await runTurkcell();
-  parts.push(`Turkcell: ${tc.message}`);
+  parts.push(`Vatan: ${v.count}`);
+  for (const site of ITEMLIST_SITES) {
+    const r = await runItemListSite(site.id);
+    parts.push(`${site.label}: ${r.count}`);
+  }
 
   const t = await runTracked({ variantIds: variantId ? [variantId] : model.variants.map((v) => v.id) });
   if (t.count || !t.ok) parts.push(`Linkler: ${t.message}`);

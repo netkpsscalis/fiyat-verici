@@ -7,15 +7,15 @@ import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { filterOutliers, median } from "@/lib/pricing/stats";
 import { fetchGetmobil } from "./getmobil";
-import { fetchTurkcell } from "./turkcell";
+import { fetchItemListSite, ITEMLIST_SITES } from "./itemList";
 import { fetchVatan } from "./vatan";
 import { politeFetch, sourceNameFromUrl } from "./http";
 import { extractOffers } from "./jsonld";
 import { pickTrackedPrice } from "./pick";
 import type { UnmatchedProduct } from "./unmatched";
 
-export const SOURCES = ["getmobil", "vatan", "turkcell", "tracked"] as const;
-export type SourceId = (typeof SOURCES)[number];
+export const SOURCES = ["getmobil", "vatan", ...ITEMLIST_SITES.map((s) => s.id), "tracked"] as const;
+export type SourceId = string;
 
 export interface RunSummary {
   source: SourceId;
@@ -138,31 +138,33 @@ export async function runVatan(opts: { log?: (m: string) => void } = {}): Promis
   }
 }
 
-/** Turkcell Pasaj: kategori sayfalarındaki sıfır cihaz fiyatları. */
-export async function runTurkcell(opts: { log?: (m: string) => void } = {}): Promise<RunSummary> {
+/** Kategori sayfasında ürün listesi yayınlayan mağazalar: Turkcell Pasaj, Arçelik, Beko. */
+export async function runItemListSite(siteId: string, opts: { log?: (m: string) => void } = {}): Promise<RunSummary> {
   const log = opts.log ?? (() => {});
+  const site = ITEMLIST_SITES.find((s) => s.id === siteId);
+  if (!site) return { source: siteId, ok: false, count: 0, message: "Bilinmeyen mağaza." };
   try {
     const catalog = await getCatalog();
-    const { results, unmatched } = await fetchTurkcell(catalog.flatMap((b) => b.models), log);
-    await recordUnmatched("turkcell", unmatched);
+    const { results, unmatched } = await fetchItemListSite(site, catalog.flatMap((b) => b.models), log);
+    await recordUnmatched(site.id, unmatched);
     for (const r of results) {
       await writeDaily({
         variantId: r.variantId,
         kind: "new_retail",
-        source: "turkcell",
+        source: site.id,
         price: r.price,
         url: r.url,
         note: r.name,
-        warranty: "resmi",
+        warranty: site.warranty,
       });
     }
     const message = `${results.length} cihazın sıfır fiyatı güncellendi`;
-    await setStatus("turkcell", results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
-    return { source: "turkcell", ok: results.length > 0, count: results.length, message };
+    await setStatus(site.id, results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
+    return { source: site.id, ok: results.length > 0, count: results.length, message };
   } catch (e) {
     const message = (e as Error).message;
-    await setStatus("turkcell", false, 0, message);
-    return { source: "turkcell", ok: false, count: 0, message };
+    await setStatus(site.id, false, 0, message);
+    return { source: site.id, ok: false, count: 0, message };
   }
 }
 
@@ -216,7 +218,7 @@ export async function runAll(opts: { only?: SourceId; modelIds?: string[]; log?:
     opts.log?.(`▶ ${s}`);
     if (s === "getmobil") out.push(await runGetmobil(opts));
     else if (s === "vatan") out.push(await runVatan({ log: opts.log }));
-    else if (s === "turkcell") out.push(await runTurkcell({ log: opts.log }));
+    else if (ITEMLIST_SITES.some((site) => site.id === s)) out.push(await runItemListSite(s, { log: opts.log }));
     else out.push(await runTracked({ log: opts.log }));
   }
   return out;

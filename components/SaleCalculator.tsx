@@ -1,15 +1,16 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { fetchMarket, recordTransaction } from "@/app/actions";
 import { Chip } from "@/components/Chip";
+import { ModelPicker, rememberModel } from "@/components/ModelPicker";
 import { ObservationList } from "@/components/ObservationList";
 import { PriceTag } from "@/components/PriceTag";
 import { QuickSellerPrice } from "@/components/QuickSellerPrice";
 import { SellerList } from "@/components/SellerList";
 import { RefreshSourcesButton } from "@/components/RefreshSourcesButton";
-import { VariantSelect } from "@/components/VariantSelect";
 import type { WarrantyType } from "@/lib/db/schema";
 import { formatTL, parsePrice, sourceLabel, variantLabel } from "@/lib/format";
 import { computeSaleQuote } from "@/lib/pricing/engine";
@@ -41,6 +42,12 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
     };
   }, [variantId]);
 
+  function pickModel(m: CatalogModel) {
+    rememberModel(m.id);
+    setModel(m);
+    setVariantId(m.variants.length === 1 ? m.variants[0].id : null);
+  }
+
   function reloadMarket() {
     if (!variantId) return;
     const id = variantId;
@@ -63,16 +70,43 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
           <p className="mt-2 text-muted">Toptan maliyete ve piyasadaki fiyatlara göre satış fiyatını gör.</p>
         </header>
 
-        <VariantSelect
-          catalog={catalog}
-          modelId={model?.id ?? null}
-          variantId={variantId}
-          onChange={(m, v) => {
-            setModel(m);
-            setVariantId(v);
-          }}
-        />
+        {!model ? (
+          <ModelPicker catalog={catalog} onPick={pickModel} />
+        ) : (
+          <>
+            <section className="flex items-center justify-between gap-3 rounded-lg border border-line bg-paper px-4 py-3">
+              <div>
+                <p className="eyebrow text-muted">
+                  {model.brandName} · {model.releaseYear}
+                </p>
+                <p className="font-display text-xl font-bold [font-stretch:105%]">{model.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setModel(null);
+                  setVariantId(null);
+                }}
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-muted hover:bg-ground hover:text-ink"
+              >
+                <RotateCcw aria-hidden size={16} /> Başka cihaz
+              </button>
+            </section>
 
+            <div>
+              <p className="font-semibold">{model.family === "iphone" ? "Hafıza" : "RAM ve hafıza"}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {model.variants.map((v) => (
+                  <Chip key={v.id} selected={v.id === variantId} onClick={() => setVariantId(v.id)}>
+                    {variantLabel(v)}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {model && variantId && (
         <div>
           <p className="font-semibold">Garanti</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -83,6 +117,7 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
             ))}
           </div>
         </div>
+        )}
 
         {quote && variantId && (
           <>
@@ -99,7 +134,7 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
                 <h2 className="eyebrow text-muted">
-                  Satıcı fiyatları · en ucuzdan pahalıya{sellerRows.length ? ` · ${sellerRows.length} mağaza` : ""}
+                  Satıcı fiyatları{sellerRows.length ? ` · ${sellerRows.length} mağaza` : ""} · ucuzdan pahalıya
                 </h2>
                 {model && <RefreshSourcesButton modelId={model.id} variantId={variantId} onDone={reloadMarket} />}
               </div>
