@@ -179,7 +179,7 @@ export function BuyWizard({
                 <h2 id="dokum-baslik" className="eyebrow border-b border-line pb-2 text-muted">
                   Bu fiyat nereden geldi?
                 </h2>
-                <RefreshSourcesButton modelId={model.id} onDone={reloadMarket} />
+                <RefreshSourcesButton modelId={model.id} variantId={variantId} onDone={reloadMarket} />
                 <BuyBreakdown quote={quote} settings={settings} />
                 {variantId && <QuoteActions quote={quote} variantId={variantId} selection={selection} />}
               </section>

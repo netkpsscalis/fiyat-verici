@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { formatAge, formatTL, KIND_LABELS, SOURCE_LABELS } from "@/lib/format";
+import { formatAge, formatTL, KIND_LABELS, sourceLabel } from "@/lib/format";
 import type { UsedObservation } from "@/lib/pricing/engine";
 
 /** Bir fiyatın hangi verilerden hesaplandığını gösteren liste. */
@@ -12,7 +12,7 @@ export function ObservationList({ items }: { items: UsedObservation[] }) {
         <li key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
           <div className="min-w-0">
             <p className="truncate font-medium">
-              {SOURCE_LABELS[o.source] ?? o.source}
+              {sourceLabel(o.source)}
               <span className="font-normal text-muted"> · {KIND_LABELS[o.kind] ?? o.kind}</span>
             </p>
             <p className="font-mono text-[0.7rem] text-muted">

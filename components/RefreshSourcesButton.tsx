@@ -2,10 +2,18 @@
 
 import { RotateCcw } from "lucide-react";
 import { useState, useTransition } from "react";
-import { refreshModelSources } from "@/app/kaynaklar/actions";
+import { refreshSources } from "@/app/kaynaklar/actions";
 
 /** Modelin otomatik kaynaklarını hemen okur; bitince `onDone` ile fiyatlar yeniden yüklenir. */
-export function RefreshSourcesButton({ modelId, onDone }: { modelId: string; onDone: () => void }) {
+export function RefreshSourcesButton({
+  modelId,
+  variantId,
+  onDone,
+}: {
+  modelId: string;
+  variantId?: string | null;
+  onDone: () => void;
+}) {
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
@@ -17,7 +25,7 @@ export function RefreshSourcesButton({ modelId, onDone }: { modelId: string; onD
         onClick={() =>
           start(async () => {
             setMessage(null);
-            const res = await refreshModelSources(modelId);
+            const res = await refreshSources({ modelId, variantId });
             setMessage(res.ok ? res.data.message : res.error);
             onDone();
           })

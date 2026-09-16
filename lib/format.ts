@@ -53,6 +53,36 @@ export const KIND_LABELS: Record<string, string> = {
   own_sell: "Benim satışım",
 };
 
+/** Epey'den gelen mağaza adları */
+export const SELLER_NAMES: Record<string, string> = {
+  "hepsiburada.com": "Hepsiburada",
+  "trendyol.com": "Trendyol",
+  "mediamarkt.com.tr": "Media Markt",
+  "vatanbilgisayar.com": "Vatan",
+  "pttavm.com": "PTT AVM",
+  "n11.com": "n11",
+  "amazon.com.tr": "Amazon",
+  "teknosa.com": "Teknosa",
+  "pazarama.com": "Pazarama",
+  "ciceksepeti.com": "Çiçeksepeti",
+  "idefix.com": "idefix",
+  "apple.com": "Apple",
+  "samsung.com": "Samsung",
+  "mi.com": "Xiaomi",
+  "turkcell.com.tr": "Turkcell",
+  "vodafone.com.tr": "Vodafone",
+  "arcelik.com.tr": "Arçelik",
+  "beko.com.tr": "Beko",
+  "avansas.com": "Avansas",
+};
+
+export function sellerLabel(host: string): string {
+  const clean = host.replace(/^www\./, "");
+  if (SELLER_NAMES[clean]) return SELLER_NAMES[clean];
+  const name = clean.split(".")[0];
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 export const SOURCE_LABELS: Record<string, string> = {
   manual: "Elle",
   akakce: "Akakçe",
@@ -69,7 +99,24 @@ export const SOURCE_LABELS: Record<string, string> = {
   n11: "n11",
   amazon: "Amazon",
   tracked: "Takip linkleri",
+  vatan: "Vatan",
+  mediamarkt: "Media Markt",
+  pttavm: "PTT AVM",
+  teknosa: "Teknosa",
+  apple: "Apple TR",
+  samsung: "Samsung TR",
 };
+
+/** "epey:mediamarkt.com.tr" → "Media Markt" */
+export function sourceLabel(source: string): string {
+  if (SOURCE_LABELS[source]) return SOURCE_LABELS[source];
+  if (source.includes(".")) return sellerLabel(source);
+  // "merkez-gsm" -> "Merkez Gsm"
+  return source
+    .split(/[-_]/)
+    .map((w) => w.charAt(0).toLocaleUpperCase("tr") + w.slice(1))
+    .join(" ");
+}
 
 export const WARRANTY_LABELS: Record<string, string> = {
   resmi: "Resmi (TR)",

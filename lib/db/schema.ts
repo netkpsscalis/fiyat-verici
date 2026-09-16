@@ -180,6 +180,21 @@ export const trackedUrls = sqliteTable(
   (t) => [uniqueIndex("tracked_variant_url_idx").on(t.variantId, t.url)],
 );
 
+/** Bir varyantın bir kaynaktaki sayfa adresi (ör. Epey ürün sayfası). Bir kez bulunur, sonra doğrudan kullanılır. */
+export const sourcePages = sqliteTable(
+  "source_pages",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    variantId: text("variant_id")
+      .notNull()
+      .references(() => variants.id),
+    source: text("source").notNull(),
+    url: text("url").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [uniqueIndex("source_pages_variant_source_idx").on(t.variantId, t.source)],
+);
+
 export const sourceStatus = sqliteTable("source_status", {
   source: text("source").primaryKey(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),

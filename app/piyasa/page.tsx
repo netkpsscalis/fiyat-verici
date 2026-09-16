@@ -3,7 +3,7 @@ import Link from "next/link";
 import { DeleteObservationButton } from "@/components/DeleteObservationButton";
 import { ObservationForm } from "@/components/ObservationForm";
 import { getCatalog, getRecentObservations } from "@/lib/data";
-import { formatAge, formatTL, KIND_LABELS, SOURCE_LABELS, variantLabel, WARRANTY_LABELS } from "@/lib/format";
+import { formatAge, formatTL, KIND_LABELS, sourceLabel, variantLabel, WARRANTY_LABELS } from "@/lib/format";
 import { DAY_MS } from "@/lib/pricing/stats";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ export default async function PiyasaPage({ searchParams }: { searchParams: Promi
                     </Link>
                   </p>
                   <p className="truncate text-xs text-muted">
-                    {KIND_LABELS[o.kind]} · {SOURCE_LABELS[o.source] ?? o.source}
+                    {KIND_LABELS[o.kind]} · {sourceLabel(o.source)}
                     {o.warranty ? ` · ${WARRANTY_LABELS[o.warranty]}` : ""}
                     {o.condition ? ` · ${o.condition}` : ""} · {formatAge((now - o.observedAt) / DAY_MS)}
                   </p>

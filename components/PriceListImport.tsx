@@ -55,6 +55,7 @@ export function PriceListImport({
   const [defaultWarranty, setDefaultWarranty] = useState<WarrantyType | null>("resmi");
   const [drafts, setDrafts] = useState<Draft[] | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "stop"; text: string } | null>(null);
+  const [ocr, setOcr] = useState<{ progress: number } | null>(null);
   const [pending, start] = useTransition();
 
   function read(source = text) {
@@ -89,6 +90,35 @@ export function PriceListImport({
       setFileName(file.name);
       read(body.text);
     });
+  }
+
+  /** WhatsApp'tan resim olarak gelen listeler (İdeal Pasaj gibi) telefonda okunur; resim sunucuya gitmez. */
+  async function onImage(file: File) {
+    setMessage(null);
+    setOcr({ progress: 0 });
+    try {
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("tur", 1, {
+        logger: (m: { status: string; progress: number }) => {
+          if (m.status === "recognizing text") setOcr({ progress: m.progress });
+        },
+      });
+      const { data } = await worker.recognize(file);
+      await worker.terminate();
+      const text = data.text.trim();
+      if (!text) {
+        setMessage({ tone: "stop", text: "Resimde yazı okunamadı. Daha net bir görüntü dene." });
+        return;
+      }
+      setText(text);
+      setFileName(file.name);
+      read(text);
+      setMessage({ tone: "ok", text: "Resim okundu. Satırları kontrol et: okuma hatası olabilir." });
+    } catch {
+      setMessage({ tone: "stop", text: "Resim okunamadı." });
+    } finally {
+      setOcr(null);
+    }
   }
 
   function update(key: string, patch: Partial<Draft>) {
@@ -176,21 +206,44 @@ export function PriceListImport({
           />
         </label>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex h-11 cursor-pointer items-center rounded-lg border border-ink px-4 text-sm font-semibold">
-            Dosyadan yükle
-            <input
-              type="file"
-              accept=".xlsx,.csv,.txt,.pdf"
-              className="sr-only"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void onFile(f);
-                e.target.value = "";
-              }}
-            />
-          </label>
-          <span className="text-sm text-muted">Excel (.xlsx), CSV veya PDF. Resim listeler henüz okunmuyor.</span>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex h-11 cursor-pointer items-center rounded-lg border border-ink px-4 text-sm font-semibold">
+              Dosyadan yükle
+              <input
+                type="file"
+                accept=".xlsx,.csv,.txt,.pdf"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onFile(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <label className="inline-flex h-11 cursor-pointer items-center rounded-lg border border-ink px-4 text-sm font-semibold">
+              Resimden oku
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onImage(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {ocr && (
+              <span role="status" className="text-sm font-medium text-muted">
+                Resim okunuyor… %{Math.round(ocr.progress * 100)}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted">
+            Excel (.xlsx), CSV, PDF ya da resim. Resim listeler (İdeal Pasaj gibi) telefonun kendisinde okunur, sunucuya
+            gönderilmez; okuma hatası olabileceği için satırları kontrol et.
+          </p>
         </div>
 
         <div>

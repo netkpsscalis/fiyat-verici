@@ -6,10 +6,12 @@ import { fetchMarket, recordTransaction } from "@/app/actions";
 import { Chip } from "@/components/Chip";
 import { ObservationList } from "@/components/ObservationList";
 import { PriceTag } from "@/components/PriceTag";
+import { QuickSellerPrice } from "@/components/QuickSellerPrice";
+import { SellerList } from "@/components/SellerList";
 import { RefreshSourcesButton } from "@/components/RefreshSourcesButton";
 import { VariantSelect } from "@/components/VariantSelect";
 import type { WarrantyType } from "@/lib/db/schema";
-import { formatTL, parsePrice, SOURCE_LABELS, variantLabel } from "@/lib/format";
+import { formatTL, parsePrice, sourceLabel, variantLabel } from "@/lib/format";
 import { computeSaleQuote } from "@/lib/pricing/engine";
 import type { PricingSettings } from "@/lib/pricing/settings";
 import type { CatalogBrand, CatalogModel, ObservationDTO } from "@/lib/types";
@@ -48,6 +50,10 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
   const rows = market?.variantId === variantId ? market.rows : null;
   const quote = useMemo(() => (rows ? computeSaleQuote({ observations: rows, warranty, settings }) : null), [rows, warranty, settings]);
   const variant = model?.variants.find((v) => v.id === variantId);
+  // Satıcı listesi: garanti seçimine uyan sıfır fiyatlar
+  const sellerRows = (rows ?? []).filter(
+    (o) => o.kind === "new_retail" && (!warranty || !o.warranty || o.warranty === warranty),
+  );
 
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-10">
@@ -92,9 +98,28 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
               />
             </div>
 
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
+                <h2 className="eyebrow text-muted">Satıcı fiyatları{sellerRows.length ? ` · ${sellerRows.length} mağaza` : ""}</h2>
+                {model && <RefreshSourcesButton modelId={model.id} variantId={variantId} onDone={reloadMarket} />}
+              </div>
+              {sellerRows.length > 0 ? (
+                <SellerList items={sellerRows} />
+              ) : (
+                <p className="rounded-lg border border-dashed border-line px-4 py-4 text-center text-sm text-muted">
+                  Bu cihaz için satıcı fiyatı yok. &ldquo;Kaynakları güncelle&rdquo; Vatan fiyatını çeker; diğer mağazaları
+                  aşağıdan elle ekleyebilirsin.
+                </p>
+              )}
+              <QuickSellerPrice variantId={variantId} warranty={warranty} onAdded={reloadMarket} />
+              <p className="text-xs text-muted">
+                Vatan otomatik güncellenir. Media Markt, PTT AVM, Hepsiburada gibi siteler otomatik okumayı engellediği için
+                onların fiyatını elle ekle; eklediğin fiyat listede sıraya girer.
+              </p>
+            </section>
+
             <section className="space-y-4 text-sm">
               <h2 className="eyebrow border-b border-line pb-2 text-muted">Bu fiyat nereden geldi?</h2>
-              {model && <RefreshSourcesButton modelId={model.id} onDone={reloadMarket} />}
               {quote.warnings.length > 0 && (
                 <ul className="space-y-1 rounded-lg border border-stop/40 bg-stop/5 px-3 py-2 text-stop">
                   {quote.warnings.map((w) => (
@@ -112,7 +137,7 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
               {quote.retail && (
                 <Line label="Piyasa perakende (ortalama)" value={formatTL(quote.retail.median)}>
                   En düşük {formatTL(quote.retail.min)} · {quote.retail.count} fiyat ·{" "}
-                  {quote.retail.sources.map((s) => SOURCE_LABELS[s] ?? s).join(", ")}
+                  {quote.retail.sources.map((s) => sourceLabel(s)).join(", ")}
                 </Line>
               )}
               <Line label="Kâr ayarı" value="">

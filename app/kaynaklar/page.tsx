@@ -14,7 +14,8 @@ export const metadata: Metadata = { title: "Kaynaklar" };
 
 const DESCRIPTIONS: Record<string, string> = {
   getmobil: "Yenilenmiş cihaz satış fiyatları. Katalogdaki her model için Getmobil'deki ilanlar okunur.",
-  tracked: "Senin eklediğin ürün sayfaları.",
+  vatan: "Vatan Bilgisayar'daki sıfır cihaz fiyatları (Apple, Samsung, Xiaomi kategorileri).",
+  tracked: "Senin eklediğin ürün sayfaları (ör. apple.com/tr, samsung.com/tr).",
 };
 
 export default async function KaynaklarPage() {
@@ -32,8 +33,9 @@ export default async function KaynaklarPage() {
           Kaynaklar
         </h1>
         <p className="mt-2 max-w-2xl text-muted">
-          Otomatik kaynaklar her sabah 07:00&apos;de okunur. Akakçe, Cimri, Hepsiburada ve Sahibinden bot doğrulaması
-          istediği için otomatik okunamaz; oradaki fiyatları Piyasa sayfasından elle ekle.
+          Otomatik kaynaklar her sabah 07:00&apos;de okunur. Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt,
+          PTT AVM, Teknosa ve Sahibinden otomatik okumayı engelliyor; onların fiyatlarını Sat ekranındaki &ldquo;Gördüğün bir
+          fiyatı ekle&rdquo; kutusundan ya da Piyasa sayfasından elle gir.
         </p>
       </header>
 

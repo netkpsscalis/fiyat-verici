@@ -1,6 +1,6 @@
 import { ObservationList } from "@/components/ObservationList";
 import { CONFIDENCE_LABELS } from "@/components/PriceTag";
-import { adjustmentText, formatTL, SOURCE_LABELS } from "@/lib/format";
+import { adjustmentText, formatTL, sourceLabel } from "@/lib/format";
 import type { BuyQuote, Reference } from "@/lib/pricing/engine";
 import type { PricingSettings } from "@/lib/pricing/settings";
 
@@ -55,7 +55,7 @@ export function BuyBreakdown({ quote, settings }: { quote: BuyQuote; settings: P
 
       {quote.competitor && (
         <Row label="Rakiplerin alış teklifi" value={formatTL(quote.competitor.adjusted)}>
-          Kusursuz için {formatTL(quote.competitor.median)} ({quote.competitor.sources.map((s) => SOURCE_LABELS[s] ?? s).join(", ")}),
+          Kusursuz için {formatTL(quote.competitor.median)} ({quote.competitor.sources.map((s) => sourceLabel(s)).join(", ")}),
           bu durum için düzeltildi. Ortalama teklif bununla harmanlanır.
         </Row>
       )}

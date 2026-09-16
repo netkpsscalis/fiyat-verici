@@ -12,7 +12,7 @@ Telefona uygulama gibi kurulur (PWA).
 |---|---|
 | **Al** | Model, hafıza, kozmetik, pil sağlığı, parça geçmişi, garanti ve IMEI kaydını seç; alış teklifini gör. "Aldım" ile alışı kaydet. |
 | **Sat** | Sıfır cihazın toptan maliyeti ve piyasa fiyatına göre satış fiyatı. "Sattım" ile satışı kaydet. |
-| **Toptancı** | WhatsApp listesini yapıştır ya da Excel/CSV/PDF yükle. Satırları kontrol et, onayladıkların kaydedilir. Tanınmayan yazımları (ör. "15PM") bir kez düzeltirsen uygulama öğrenir. |
+| **Toptancı** | WhatsApp listesini yapıştır, Excel/CSV/PDF yükle ya da resim olarak gelen listeyi (İdeal Pasaj gibi) okut. Satırları kontrol et, onayladıkların kaydedilir. Tanınmayan yazımları (ör. "15PM") bir kez düzeltirsen uygulama öğrenir. |
 | **Piyasa** | Sahibinden ilanı, rakip alış teklifi gibi fiyatları elle ekle. Tüm fiyat kayıtlarını gör. |
 | **Ayarlar** | Kâr payları, en az kâr, ilan pazarlık payı ve her durum kesintisinin oranı. Geçmiş ve Kaynaklar sayfalarına buradan gidilir. |
 
@@ -33,9 +33,13 @@ siteler atlatılmaya çalışılmaz.
 | Kaynak | Durum |
 |---|---|
 | Getmobil (yenilenmiş satış fiyatları) | Otomatik, katalogdaki modellerin çoğu |
+| Vatan Bilgisayar (sıfır fiyat) | Otomatik, Apple / Samsung / Xiaomi kategori sayfaları |
 | apple.com/tr, samsung.com/tr (resmi sıfır fiyat) | Kaynaklar sayfasından ürün linki eklenerek |
-| Akakçe, Cimri, Hepsiburada, Trendyol, n11, Sahibinden | Bot korumalı, otomatik okunamaz. Fiyatları Piyasa sayfasından elle ekle |
-| Toptancılar | Toptancı sekmesinden liste yükleyerek |
+| Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt, PTT AVM, Teknosa, Sahibinden | Bot korumalı, otomatik okunamaz. Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusundan elle gir |
+| Toptancılar | Toptancı sekmesinden liste yükleyerek (metin, Excel, CSV, PDF ya da resim) |
+
+Sat ekranında cihazın satıcı fiyatları en ucuzdan pahalıya sıralanır; otomatik gelen ve elle eklenen fiyatlar aynı listede
+görünür. "Kaynakları güncelle" düğmesi o cihazın otomatik kaynaklarını anında okur.
 
 ## Bilgisayarda çalıştırma
 

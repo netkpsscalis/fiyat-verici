@@ -30,7 +30,10 @@ async function robotsFor(origin: string): Promise<RobotsRules | null> {
   return rules;
 }
 
-export async function politeFetch(url: string, opts: { delayMs?: number; timeoutMs?: number } = {}): Promise<string> {
+export async function politeFetch(
+  url: string,
+  opts: { delayMs?: number; timeoutMs?: number; retryAfterMs?: number } = {},
+): Promise<string> {
   const u = new URL(url);
   const rules = await robotsFor(u.origin);
   if (rules && !isAllowed(rules, u.pathname + u.search)) {
@@ -50,7 +53,21 @@ export async function politeFetch(url: string, opts: { delayMs?: number; timeout
     signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
     redirect: "follow",
   });
-  if (res.status === 403 || res.status === 429) throw new BlockedError(`${u.hostname} erişimi engelledi (${res.status}).`);
+  if (res.status === 403 || res.status === 429) {
+    // Kısa sürede çok istek atılmışsa site geçici kısıtlar: bir kez bekleyip yeniden dene
+    if (opts.retryAfterMs) {
+      await sleep(opts.retryAfterMs);
+      lastHit.set(u.host, Date.now());
+      const retry = await fetch(url, {
+        headers: { "User-Agent": USER_AGENT, "Accept-Language": "tr-TR,tr;q=0.9", Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
+        redirect: "follow",
+      });
+      if (retry.ok) return retry.text();
+      throw new BlockedError(`${u.hostname} erişimi engelledi (${retry.status}). Biraz sonra tekrar dene.`);
+    }
+    throw new BlockedError(`${u.hostname} erişimi engelledi (${res.status}).`);
+  }
   if (!res.ok) throw new Error(`${u.hostname} sayfası açılamadı (${res.status}).`);
   const text = await res.text();
   if (text.length < 20_000 && /cf-chl|challenge-platform|captcha/i.test(text)) {

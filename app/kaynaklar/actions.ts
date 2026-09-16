@@ -6,7 +6,7 @@ import { z } from "zod";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { WARRANTY_TYPES } from "@/lib/db/schema";
-import { runGetmobil, runTracked, SOURCES } from "@/lib/sources/run";
+import { runGetmobil, runTracked, runVatan, SOURCES } from "@/lib/sources/run";
 import type { ActionResult } from "@/lib/types";
 
 const trackedInput = z.object({
@@ -58,14 +58,23 @@ export async function toggleSource(source: string, enabled: boolean): Promise<Ac
   return { ok: true, data: undefined };
 }
 
-/** Bakılan modelin otomatik kaynaklarını hemen yeniler (Getmobil + o modelin takip linkleri). */
-export async function refreshModelSources(modelId: string): Promise<ActionResult<{ message: string }>> {
-  const model = (await getCatalog()).flatMap((b) => b.models).find((m) => m.id === z.string().parse(modelId));
+/** Bakılan cihazın otomatik kaynaklarını hemen yeniler: Getmobil, Epey satıcı fiyatları ve takip linkleri. */
+export async function refreshSources(input: { modelId: string; variantId?: string | null }): Promise<ActionResult<{ message: string }>> {
+  const modelId = z.string().min(1).parse(input.modelId);
+  const variantId = input.variantId ? z.string().min(1).parse(input.variantId) : null;
+  const model = (await getCatalog()).flatMap((b) => b.models).find((m) => m.id === modelId);
   if (!model) return { ok: false, error: "Model bulunamadı." };
+
+  const parts: string[] = [];
   const g = await runGetmobil({ modelIds: [model.id] });
-  const t = await runTracked({ variantIds: model.variants.map((v) => v.id) });
-  revalidatePath("/piyasa");
-  const parts = [g.ok ? `Getmobil: ${g.count ? `${g.count} hafıza güncellendi` : "bu model yok"}` : `Getmobil: ${g.message}`];
+  parts.push(`Getmobil: ${g.ok ? (g.count ? `${g.count} hafıza` : "bu model yok") : g.message}`);
+
+  const v = await runVatan();
+  parts.push(`Vatan: ${v.ok ? v.message : v.message}`);
+
+  const t = await runTracked({ variantIds: variantId ? [variantId] : model.variants.map((v) => v.id) });
   if (t.count || !t.ok) parts.push(`Linkler: ${t.message}`);
+
+  revalidatePath("/piyasa");
   return { ok: true, data: { message: parts.join(" · ") } };
 }

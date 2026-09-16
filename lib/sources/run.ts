@@ -7,11 +7,12 @@ import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { filterOutliers, median } from "@/lib/pricing/stats";
 import { fetchGetmobil } from "./getmobil";
+import { fetchVatan } from "./vatan";
 import { politeFetch, sourceNameFromUrl } from "./http";
 import { extractOffers } from "./jsonld";
 import { pickTrackedPrice } from "./pick";
 
-export const SOURCES = ["getmobil", "tracked"] as const;
+export const SOURCES = ["getmobil", "vatan", "tracked"] as const;
 export type SourceId = (typeof SOURCES)[number];
 
 export interface RunSummary {
@@ -92,6 +93,33 @@ export async function runGetmobil(opts: { modelIds?: string[]; log?: (m: string)
   }
 }
 
+/** Vatan Bilgisayar: marka kategorisi sayfalarından sıfır cihaz fiyatları. */
+export async function runVatan(opts: { log?: (m: string) => void } = {}): Promise<RunSummary> {
+  const log = opts.log ?? (() => {});
+  try {
+    const catalog = await getCatalog();
+    const results = await fetchVatan(catalog.flatMap((b) => b.models), log);
+    for (const r of results) {
+      await writeDaily({
+        variantId: r.variantId,
+        kind: "new_retail",
+        source: "vatan",
+        price: r.price,
+        url: r.url,
+        note: r.name,
+        warranty: r.warranty,
+      });
+    }
+    const message = `${results.length} cihazın sıfır fiyatı güncellendi`;
+    await setStatus("vatan", results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
+    return { source: "vatan", ok: results.length > 0, count: results.length, message };
+  } catch (e) {
+    const message = (e as Error).message;
+    await setStatus("vatan", false, 0, message);
+    return { source: "vatan", ok: false, count: 0, message };
+  }
+}
+
 export async function runTracked(opts: { variantIds?: string[]; log?: (m: string) => void } = {}): Promise<RunSummary> {
   const log = opts.log ?? (() => {});
   const rows = await db
@@ -140,7 +168,9 @@ export async function runAll(opts: { only?: SourceId; modelIds?: string[]; log?:
     if (opts.only && opts.only !== s) continue;
     if (!opts.only && !enabled.has(s)) continue;
     opts.log?.(`▶ ${s}`);
-    out.push(s === "getmobil" ? await runGetmobil(opts) : await runTracked({ log: opts.log }));
+    if (s === "getmobil") out.push(await runGetmobil(opts));
+    else if (s === "vatan") out.push(await runVatan({ log: opts.log }));
+    else out.push(await runTracked({ log: opts.log }));
   }
   return out;
 }

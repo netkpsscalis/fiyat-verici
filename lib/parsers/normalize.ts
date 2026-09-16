@@ -22,7 +22,8 @@ export function tokenize(s: string): string[] {
   return fold(s)
     .replace(/(\d)\s*(tl|try|₺)\b/g, "$1 ")
     .replace(/₺/g, " ")
-    // "8+256" → "8/256". Sayı bağımsız başlamalı: "S24+ 8" birleşmesin
+    // "8+256" ve "8+256GB" → "8/256". Sayı bağımsız başlamalı: "S24+ 8" birleşmesin
+    .replace(/\b(\d{1,2})\s*\+\s*(\d{2,4})\s*gb\b/g, "$1/$2")
     .replace(/\b(\d{1,2})\s*\+\s*(\d{2,4})\b/g, "$1/$2")
     .replace(/(\d)\s*gb\s*\/\s*(\d)/g, "$1/$2")
     .replace(/(\d)\s+(gb|tb)\b/g, "$1$2")
