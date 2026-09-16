@@ -130,8 +130,16 @@ describe("getmobil", () => {
     expect(keys.indexOf("samsung/galaxy-s22-plus")).toBeLessThan(keys.indexOf("samsung/galaxy-s22-plus-5g"));
   });
 
+  it("katalogda olmayan hafıza seçeneğini bildirir", () => {
+    const { byVariant, missing } = offersByVariant(s23, [
+      { name: null, size: "1 TB", price: 90_000, currency: "TRY", condition: "refurbished", inStock: true },
+    ]);
+    expect(byVariant.size).toBe(0);
+    expect(missing).toEqual([{ ramGb: null, storageGb: 1024, prices: [90_000] }]);
+  });
+
   it("RAM yazmayan teklifi aynı depolamalı varyantlara dağıtır, stokta olmayanı ve dövizliyi atlar", () => {
-    const m = offersByVariant(s23, [
+    const { byVariant: m, missing } = offersByVariant(s23, [
       { name: null, size: "256 GB", price: 50000, currency: "TRY", condition: "refurbished", inStock: true },
       { name: null, size: "512 GB", price: 60000, currency: "TRY", condition: "refurbished", inStock: false },
       { name: null, size: "512 GB", price: 700, currency: "USD", condition: "refurbished", inStock: true },
@@ -139,5 +147,6 @@ describe("getmobil", () => {
     expect(m.get("s23u-8-256")).toEqual([50000]);
     expect(m.get("s23u-12-256")).toEqual([50000]);
     expect(m.has("s23u-12-512")).toBe(false);
+    expect(missing).toEqual([]);
   });
 });

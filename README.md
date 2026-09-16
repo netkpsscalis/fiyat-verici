@@ -47,8 +47,12 @@ Sat ekranında cihazın satıcı fiyatları en ucuzdan pahalıya sıralanır; ot
 görünür. "Kaynakları güncelle" o cihazın kaynaklarını, Kaynaklar sayfasındaki "Fiyatları şimdi güncelle" ise bütün mağaza
 fiyatlarını ve öğrenme düzeltmesini anında yeniler.
 
-Mağazalarda görülüp katalogda olmayan telefonlar Kaynaklar sayfasında listelenir; "Kataloğa ekle" dediğinde model kataloğa
-girer ve bir sonraki güncellemede fiyatı gelir.
+Otomatik okunamayan siteler için iki yol var: Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusu ve **"Fiyat listesi yapıştır"**.
+İkincisinde Epey/Akakçe sayfasındaki satıcı listesini kopyalayıp yapıştırırsın; mağaza adı, fiyat, kargo ve garanti okunup
+listeye eklenir (siteye istek atılmaz, yapıştırdığın metin işlenir).
+
+Katalog kendi kendine büyür: mağazalarda ve Getmobil site haritasında görülen telefonlar otomatik eklenir, emin olunamayanlar
+Kaynaklar sayfasındaki "Katalogda olmayan telefonlar" listesine düşer ve tek dokunuşla eklenir.
 
 ## Bilgisayarda çalıştırma
 

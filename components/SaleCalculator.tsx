@@ -10,6 +10,7 @@ import { ObservationList } from "@/components/ObservationList";
 import { PriceTag } from "@/components/PriceTag";
 import { QuickSellerPrice } from "@/components/QuickSellerPrice";
 import { SellerList } from "@/components/SellerList";
+import { SellerPasteBox } from "@/components/SellerPasteBox";
 import { RefreshSourcesButton } from "@/components/RefreshSourcesButton";
 import type { WarrantyType } from "@/lib/db/schema";
 import { formatTL, parsePrice, sourceLabel, variantLabel } from "@/lib/format";
@@ -147,9 +148,11 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
                 </p>
               )}
               <QuickSellerPrice variantId={variantId} warranty={warranty} onAdded={reloadMarket} />
+              <SellerPasteBox variantId={variantId} onSaved={reloadMarket} />
               <p className="text-xs text-muted">
-                Vatan otomatik güncellenir. Media Markt, PTT AVM, Hepsiburada gibi siteler otomatik okumayı engellediği için
-                onların fiyatını elle ekle; eklediğin fiyat listede sıraya girer.
+                Vatan, Turkcell Pasaj, Arçelik ve Beko otomatik güncellenir. Epey, Hepsiburada, Trendyol, n11, Media Markt ve
+                PTT AVM otomatik okumayı engelliyor; onların fiyatlarını tek tek ekleyebilir ya da Epey sayfasındaki listeyi
+                kopyalayıp yukarıdan yapıştırabilirsin.
               </p>
             </section>
 

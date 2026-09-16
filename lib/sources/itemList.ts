@@ -108,9 +108,9 @@ export function matchListedProducts(
     const brandId = BRAND_IDS[(p.brand ?? "").toLocaleLowerCase("tr")] ?? null;
     const found = match(tokenize(p.name), brandId);
     if (!found) {
-      // Sadece bilinen telefon markaları listeye girer; kulaklık, saat, kablo eklenmez
+      // Marka bilinmese de aday listesine girer; telefon mu değil mi kataloğa eklenirken ayıklanır
       const size = storageFromName(p.name);
-      if (brandId && size) unmatched.push({ name: p.name, price: p.price, brandId, ramGb: size.ramGb, storageGb: size.storageGb });
+      if (size) unmatched.push({ name: p.name, price: p.price, brandId, ramGb: size.ramGb, storageGb: size.storageGb });
       continue;
     }
     const size = storageFromName(p.name);

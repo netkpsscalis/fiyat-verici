@@ -3,15 +3,17 @@
  * Aynı gün tekrar çalışırsa o günün kaydını günceller (çift kayıt olmaz).
  */
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { modelId as buildModelId, variantId as buildVariantId } from "@/data/seed/devices";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { filterOutliers, median } from "@/lib/pricing/stats";
-import { fetchGetmobil } from "./getmobil";
+import { fetchGetmobil, GETMOBIL_SITEMAP, modelsFromSitemap } from "./getmobil";
 import { fetchItemListSite, ITEMLIST_SITES } from "./itemList";
 import { fetchVatan } from "./vatan";
 import { politeFetch, sourceNameFromUrl } from "./http";
 import { extractOffers } from "./jsonld";
 import { pickTrackedPrice } from "./pick";
+import { BRAND_NAMES, catalogCandidate } from "./catalogAuto";
 import type { UnmatchedProduct } from "./unmatched";
 
 export const SOURCES = ["getmobil", "vatan", ...ITEMLIST_SITES.map((s) => s.id), "tracked"] as const;
@@ -54,6 +56,62 @@ async function writeDaily(row: {
   await db.insert(schema.priceObservations).values({ ...row, warranty: row.warranty ?? null, observedAt: new Date() });
 }
 
+/** Modeli (ve markasını) kataloğa ekler; varyantı yoksa sonra oluşur. */
+async function ensureModel(brandId: string, name: string): Promise<string> {
+  const id = buildModelId(brandId, name);
+  await db.insert(schema.brands).values({ id: brandId, name: BRAND_NAMES[brandId] ?? brandId, sort: 90 }).onConflictDoNothing();
+  await db
+    .insert(schema.models)
+    .values({
+      id,
+      brandId,
+      name,
+      series: name.split(" ")[0],
+      releaseYear: new Date().getFullYear(),
+      family: brandId === "apple" ? "iphone" : "android",
+      hasBatteryHealth: brandId === "apple",
+      sort: 0,
+    })
+    .onConflictDoNothing();
+  return id;
+}
+
+/** Katalogda olmayan bir telefonu kataloğa ekler ve varyant kimliğini döndürür. */
+async function ensureVariant(c: { brandId: string; name: string; ramGb: number | null; storageGb: number }): Promise<string> {
+  const modelId = await ensureModel(c.brandId, c.name);
+  const variant = { ramGb: c.ramGb, storageGb: c.storageGb };
+  const vId = buildVariantId(modelId, variant);
+  await db.insert(schema.variants).values({ id: vId, modelId, ...variant }).onConflictDoNothing();
+  return vId;
+}
+
+/**
+ * Eşleşmeyen ürünler: telefon olduğu anlaşılanlar kataloğa eklenip fiyatı yazılır,
+ * emin olunamayanlar kullanıcının onayı için listeye düşer.
+ */
+async function absorbUnmatched(
+  source: string,
+  items: UnmatchedProduct[],
+  warranty: typeof schema.priceObservations.$inferInsert.warranty,
+): Promise<{ added: number; pending: number }> {
+  let added = 0;
+  const pending: UnmatchedProduct[] = [];
+  for (const u of items) {
+    const candidate = catalogCandidate(u);
+    if (!candidate) {
+      pending.push(u);
+      continue;
+    }
+    const variantId = await ensureVariant(candidate);
+    if (u.price) {
+      await writeDaily({ variantId, kind: "new_retail", source, price: u.price, url: null, note: u.name, warranty });
+    }
+    added++;
+  }
+  await recordUnmatched(source, pending);
+  return { added, pending: pending.length };
+}
+
 /** Katalogda olmayan telefonları biriktirir; kullanıcı Kaynaklar sayfasından ekler. */
 async function recordUnmatched(source: string, items: UnmatchedProduct[]) {
   const lastSeenAt = new Date();
@@ -84,9 +142,44 @@ async function enabledSources(): Promise<Set<string>> {
 export async function runGetmobil(opts: { modelIds?: string[]; log?: (m: string) => void } = {}): Promise<RunSummary> {
   const log = opts.log ?? (() => {});
   try {
+    let sitemapXml: string | undefined;
+    let addedModels = 0;
+    // Tüm katalog taranıyorsa önce Getmobil'deki modeller kataloğa eklenir
+    if (!opts.modelIds) {
+      sitemapXml = await politeFetch(GETMOBIL_SITEMAP);
+      const existing = new Set((await getCatalog()).flatMap((b) => b.models).map((m) => m.id));
+      for (const entry of modelsFromSitemap(sitemapXml)) {
+        const id = buildModelId(entry.brandId, entry.name);
+        if (existing.has(id)) continue;
+        await ensureModel(entry.brandId, entry.name);
+        existing.add(id);
+        addedModels++;
+      }
+      if (addedModels) log(`  kataloğa eklenen model: ${addedModels}`);
+    }
     const catalog = await getCatalog();
     const models = catalog.flatMap((b) => b.models).filter((m) => !opts.modelIds || opts.modelIds.includes(m.id));
-    const { results, missing } = await fetchGetmobil(models, log);
+    const { results, missing, missingVariants } = await fetchGetmobil(models, log, sitemapXml);
+    const byId = new Map(models.map((m) => [m.id, m]));
+    // Katalogda olmayan hafıza seçenekleri oluşturulur ve fiyatları yazılır
+    for (const mv of missingVariants) {
+      const model = byId.get(mv.modelId);
+      if (!model) continue;
+      const variantId = await ensureVariant({ brandId: model.brandId, name: model.name, ramGb: mv.ramGb, storageGb: mv.storageGb });
+      const kept = filterOutliers(mv.prices, (p) => p);
+      const price = median(kept);
+      if (price) {
+        await writeDaily({
+          variantId,
+          kind: "refurb_retail",
+          source: "getmobil",
+          price,
+          url: null,
+          note: `${kept.length} ilan · en düşük ${Math.min(...kept)} ₺`,
+          sampleSize: kept.length,
+        });
+      }
+    }
     for (const r of results) {
       const kept = filterOutliers(r.prices, (p) => p);
       const price = median(kept)!;
@@ -100,7 +193,7 @@ export async function runGetmobil(opts: { modelIds?: string[]; log?: (m: string)
         sampleSize: kept.length,
       });
     }
-    const message = `${results.length} hafıza güncellendi${missing.length ? ` · Getmobil'de olmayan: ${missing.length} model` : ""}`;
+    const message = `${results.length + missingVariants.length} hafıza güncellendi${addedModels ? `, ${addedModels} yeni model` : ""}${missing.length ? ` · Getmobil'de olmayan: ${missing.length} model` : ""}`;
     if (!opts.modelIds) await setStatus("getmobil", true, results.length, null);
     return { source: "getmobil", ok: true, count: results.length, message };
   } catch (e) {
@@ -116,7 +209,8 @@ export async function runVatan(opts: { log?: (m: string) => void } = {}): Promis
   try {
     const catalog = await getCatalog();
     const { results, unmatched } = await fetchVatan(catalog.flatMap((b) => b.models), log);
-    await recordUnmatched("vatan", unmatched);
+    const absorbed = await absorbUnmatched("vatan", unmatched, "resmi");
+    if (absorbed.added) log(`  kataloğa eklenen yeni model: ${absorbed.added}`);
     for (const r of results) {
       await writeDaily({
         variantId: r.variantId,
@@ -128,7 +222,7 @@ export async function runVatan(opts: { log?: (m: string) => void } = {}): Promis
         warranty: r.warranty,
       });
     }
-    const message = `${results.length} cihazın sıfır fiyatı güncellendi`;
+    const message = `${results.length + absorbed.added} cihazın sıfır fiyatı güncellendi${absorbed.added ? `, ${absorbed.added} yeni model eklendi` : ""}`;
     await setStatus("vatan", results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
     return { source: "vatan", ok: results.length > 0, count: results.length, message };
   } catch (e) {
@@ -146,7 +240,8 @@ export async function runItemListSite(siteId: string, opts: { log?: (m: string) 
   try {
     const catalog = await getCatalog();
     const { results, unmatched } = await fetchItemListSite(site, catalog.flatMap((b) => b.models), log);
-    await recordUnmatched(site.id, unmatched);
+    const absorbed = await absorbUnmatched(site.id, unmatched, site.warranty);
+    if (absorbed.added) log(`  kataloğa eklenen yeni model: ${absorbed.added}`);
     for (const r of results) {
       await writeDaily({
         variantId: r.variantId,
@@ -158,7 +253,7 @@ export async function runItemListSite(siteId: string, opts: { log?: (m: string) 
         warranty: site.warranty,
       });
     }
-    const message = `${results.length} cihazın sıfır fiyatı güncellendi`;
+    const message = `${results.length + absorbed.added} cihazın sıfır fiyatı güncellendi${absorbed.added ? `, ${absorbed.added} yeni model eklendi` : ""}`;
     await setStatus(site.id, results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
     return { source: site.id, ok: results.length > 0, count: results.length, message };
   } catch (e) {

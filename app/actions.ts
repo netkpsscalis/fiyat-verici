@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -119,4 +119,56 @@ export async function login(_prev: { error?: string } | undefined, formData: For
 export async function logout() {
   (await cookies()).delete(SESSION_COOKIE);
   redirect("/giris");
+}
+
+const pastedInput = z.object({
+  variantId: z.string().min(1, "Önce model ve hafıza seç."),
+  offers: z
+    .array(
+      z.object({
+        seller: z.string().trim().min(1).max(40),
+        price: z.number().positive().max(2_000_000),
+        warranty: z.enum(WARRANTY_TYPES).nullable(),
+        title: z.string().trim().max(120).nullable(),
+      }),
+    )
+    .min(1, "Kaydedilecek fiyat yok.")
+    .max(60),
+});
+
+/** Epey/Akakçe sayfasından yapıştırılan satıcı fiyatlarını kaydeder. */
+export async function addPastedPrices(input: z.input<typeof pastedInput>): Promise<ActionResult<{ count: number }>> {
+  const parsed = pastedInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Bilgiler eksik." };
+  const d = parsed.data;
+  const observedAt = new Date();
+  const startOfDay = new Date(observedAt);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  for (const o of d.offers) {
+    const source = o.seller.toLocaleLowerCase("tr").replace(/\s+/g, "-").slice(0, 40);
+    // Aynı gün aynı satıcıdan yapıştırılan eski fiyat güncellenir
+    await db
+      .delete(schema.priceObservations)
+      .where(
+        and(
+          eq(schema.priceObservations.variantId, d.variantId),
+          eq(schema.priceObservations.source, source),
+          eq(schema.priceObservations.kind, "new_retail"),
+          gte(schema.priceObservations.observedAt, startOfDay),
+        ),
+      );
+    await db.insert(schema.priceObservations).values({
+      variantId: d.variantId,
+      kind: "new_retail",
+      source,
+      price: o.price,
+      warranty: o.warranty,
+      note: o.title,
+      observedAt,
+    });
+  }
+
+  revalidatePath("/piyasa");
+  return { ok: true, data: { count: d.offers.length } };
 }
