@@ -2,39 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CatalogModel } from "@/lib/types";
 import { folderKeys, groupSitemap, offersByVariant } from "./getmobil";
 import { extractOffers, parseNumber, parseSize } from "./jsonld";
-import { pickTrackedPrice } from "./pick";
 import { isAllowed, parseRobots } from "./robots";
-
-describe("pickTrackedPrice", () => {
-  const offer = (name: string, price: number, size: string | null = null) => ({
-    name,
-    size,
-    price,
-    currency: "TRY",
-    condition: "new" as const,
-    inStock: true,
-  });
-
-  it("hafıza ürün adında yazıyorsa (Samsung mağazası) doğru hafızayı seçer", () => {
-    const offers = [
-      offer("Galaxy S25 Ultra 256 GB｜12 GB Titanyum Gümüş", 93_499),
-      offer("Galaxy S25 Ultra 512 GB｜12 GB Titanyum Mavi", 101_499),
-      offer("Galaxy S25 Ultra 1 TB｜12 GB Titanyum Gri", 111_499),
-    ];
-    expect(pickTrackedPrice(offers, { ramGb: 12, storageGb: 512 }, 256)).toBe(101_499);
-    expect(pickTrackedPrice(offers, { ramGb: 12, storageGb: 1024 }, 256)).toBe(111_499);
-  });
-
-  it("başlangıç fiyatını sadece en düşük hafızaya yazar (Apple mağazası)", () => {
-    const offers = [offer("iPhone 16", 85_999)];
-    expect(pickTrackedPrice(offers, { ramGb: null, storageGb: 128 }, 128)).toBe(85_999);
-    expect(() => pickTrackedPrice(offers, { ramGb: null, storageGb: 256 }, 128)).toThrow(/128 GB seçeneğine ekle/);
-  });
-
-  it("sayfada istenen hafıza yoksa hata verir", () => {
-    expect(() => pickTrackedPrice([offer("x", 1, "256 GB")], { ramGb: null, storageGb: 512 }, 128)).toThrow(/512 GB/);
-  });
-});
 
 describe("robots", () => {
   const txt = `

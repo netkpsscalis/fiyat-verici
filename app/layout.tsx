@@ -10,7 +10,7 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin", "latin-ext"], variable: "-
 
 export const metadata: Metadata = {
   title: { default: "Fiyat Verici", template: "%s · Fiyat Verici" },
-  description: "Telefon alış ve satış fiyatlarını piyasa verisiyle hesaplar.",
+  description: "İkinci el telefon alış fiyatını piyasa verisiyle hesaplar.",
   appleWebApp: { capable: true, title: "Fiyat Verici", statusBarStyle: "default" },
   icons: { icon: "/icons/192", apple: "/icons/180" },
 };

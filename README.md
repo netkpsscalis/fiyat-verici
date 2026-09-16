@@ -1,8 +1,8 @@
 # Fiyat Verici
 
-Telefoncu için fiyatlama uygulaması. Müşterinin getirdiği cihazın durumunu birkaç dokunuşla girersin, uygulama piyasa
-verisine göre **En az / Ortalama / En çok** alış teklifini ve bu fiyatın hangi kaynaklardan geldiğini gösterir. Sıfır cihaz
-satarken toptancı maliyetine ve piyasa fiyatına göre satış fiyatı önerir.
+Telefoncu için **ikinci el alış fiyatı** uygulaması. Müşterinin getirdiği cihazın durumunu birkaç dokunuşla girersin,
+uygulama piyasa verisine göre **En az / Ortalama / En çok** alış teklifini, her teklifte bırakacağın kârı ve fiyatın hangi
+kaynaklardan geldiğini gösterir.
 
 Telefona uygulama gibi kurulur (PWA).
 
@@ -10,59 +10,31 @@ Telefona uygulama gibi kurulur (PWA).
 
 | Sekme | Ne işe yarar |
 |---|---|
-| **Al** | Model, hafıza, kozmetik, pil sağlığı, parça geçmişi, garanti ve IMEI kaydını seç; alış teklifini gör. "Aldım" ile alışı kaydet. |
-| **Sat** | Sıfır cihazın toptan maliyeti ve piyasa fiyatına göre satış fiyatı. "Sattım" ile satışı kaydet. |
-| **Toptancı** | WhatsApp listesini yapıştır, Excel/CSV/PDF yükle ya da resim olarak gelen listeyi (İdeal Pasaj gibi) okut. Satırları kontrol et, onayladıkların kaydedilir. Tanınmayan yazımları (ör. "15PM") bir kez düzeltirsen uygulama öğrenir. |
-| **Piyasa** | Sahibinden ilanı, rakip alış teklifi gibi fiyatları elle ekle. Tüm fiyat kayıtlarını gör. |
-| **Ayarlar** | Kâr payları, en az kâr, ilan pazarlık payı ve her durum kesintisinin oranı. Geçmiş ve Kaynaklar sayfalarına buradan gidilir. |
+| **Al** | Marka (Apple / Samsung / Xiaomi / Diğer), model, hafıza, kozmetik, pil sağlığı, parça geçmişi, garanti ve IMEI kaydını seç; alış teklifini gör. İlan fiyatlarını yapıştır, Getmobil fiyatlarını yenile. "Aldım" ile alışı kaydet. |
+| **Ayarlar** | Kâr payları, en az kâr, kaynak oranları ve her durum kesintisinin oranı. Geçmiş sayfasına buradan gidilir. |
 
 ## Fiyat nasıl hesaplanır?
 
-1. **Piyasa değeri:** Son 30 günün 2. el fiyatları (kendi satışların, ilanlar, yenilenmiş cihaz fiyatları) tazeliğe göre
-   ağırlıklandırılır, uç değerler atılır, ortanca alınır. Her kaynak önce dükkan fiyatına çevrilir: ilan fiyatından pazarlık
-   payı düşülür (%93), yenilenmiş + garantili perakende fiyatı dükkan 2. el seviyesine indirilir (%82). Oranlar Ayarlar'dan
-   değiştirilir.
+1. **Satış değeri:** Sahibinden/Dolap/Letgo ilan fiyatı, cihazı dükkanda satabileceğin fiyat sayılır. Son 30 günün fiyatları
+   tazeliğe göre ağırlıklandırılır, uç değerler atılır, ortanca alınır. İlan ya da kendi satışın yoksa Getmobil'in
+   garantili yenilenmiş fiyatı %82 oranıyla kullanılır.
 2. **Durum kesintileri:** Cihazın durumuna göre yüzde ya da TL kesintiler uygulanır (Ayarlar'dan değiştirilebilir).
-3. **Teklifler:** Tahmini satış fiyatından kâr payları düşülür. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır.
-   Her cihazda en az kâr tutarı korunur.
+3. **Teklifler:** Satış değerinden kâr payı düşülür: en çok %10, ortalama %13, en az %17. 26.000 TL'lik ilan →
+   21.500 / 22.500 / 23.250 TL teklif. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır. Her cihazda en az kâr
+   tutarı korunur.
 4. **Güven:** Veri azsa ya da eskiyse uygulama uyarır.
-5. **Kendi işlemlerinden öğrenme:** Uygulamanın önerdiği fiyatlarla senin gerçekten aldığın/sattığın fiyatlar karşılaştırılır;
-   sürekli yüksek ya da düşük öneriyorsa katsayısını kendi düzeltir (en az 3 işlem gerekir).
+5. **Kendi işlemlerinden öğrenme:** Önerilen fiyatlarla senin gerçekten aldığın fiyatlar karşılaştırılır; sürekli yüksek ya da
+   düşük öneriyorsa katsayısını kendi düzeltir (en az 3 işlem gerekir).
 
-## Otomatik kaynaklar
-
-Kaynaklar günde bir kez, **robots.txt kurallarına uyarak** ve kendini açıkça tanıtarak okunur. Bot doğrulaması isteyen
-siteler atlatılmaya çalışılmaz.
+## Kaynaklar
 
 | Kaynak | Durum |
 |---|---|
-| Getmobil (yenilenmiş satış fiyatları) | Otomatik, katalogdaki modellerin çoğu |
-| Vatan Bilgisayar (sıfır fiyat) | Otomatik, Apple / Samsung / Xiaomi kategori sayfaları |
-| Turkcell Pasaj, Arçelik, Beko (sıfır fiyat) | Otomatik, kategori sayfalarındaki ürün listesi |
-| apple.com/tr, samsung.com/tr (resmi sıfır fiyat) | Kaynaklar sayfasından ürün linki eklenerek |
-| Sahibinden, Dolap, Letgo, Facebook (2. el ilan) | Bot korumalı, otomatik okunamaz. Al ekranındaki "İlan fiyatlarını yapıştır" kutusuna arama sonucunu yapıştır |
-| Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt, PTT AVM, Teknosa | Bot korumalı, otomatik okunamaz. Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusundan elle gir |
-| Toptancılar | Toptancı sekmesinden liste yükleyerek (metin, Excel, CSV, PDF ya da resim) |
+| Getmobil (yenilenmiş 2. el fiyatlar) | Otomatik, her sabah 07:00. Al ekranındaki "Getmobil fiyatlarını yenile" ile anında. Getmobil'de görülen yeni modeller kataloğa kendiliğinden eklenir. |
+| Sahibinden, Dolap, Letgo, Facebook (2. el ilan) | Bot korumalı, otomatik okunamaz. Al ekranındaki "İlan fiyatlarını yapıştır" kutusuna arama sonucunu yapıştır; hasarlı, kilitli, başka model ve başka hafızalı ilanlar ile uç fiyatlar atlanır. |
 
-Sat ekranında cihazın satıcı fiyatları en ucuzdan pahalıya sıralanır; otomatik gelen ve elle eklenen fiyatlar aynı listede
-görünür. "Kaynakları güncelle" o cihazın kaynaklarını, Kaynaklar sayfasındaki "Fiyatları şimdi güncelle" ise bütün mağaza
-fiyatlarını ve öğrenme düzeltmesini anında yeniler.
-
-Otomatik okunamayan siteler için iki yol var: Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusu ve **"Fiyat listesi yapıştır"**.
-İkincisinde Epey/Akakçe sayfasındaki satıcı listesini kopyalayıp yapıştırırsın; mağaza adı, fiyat, kargo ve garanti okunup
-listeye eklenir (siteye istek atılmaz, yapıştırdığın metin işlenir).
-
-**2. el alış mantığı:** Sahibinden/Dolap/Letgo'daki ilan fiyatı, cihazı dükkanda satabileceğin fiyat sayılır. Teklif bunun
-altından verilir: en çok %10, ortalama %13, en az %17 kâr payı (Ayarlar'dan değişir). 26.000 TL'lik ilan → 21.500 / 22.500 /
-23.250 TL teklif. Yerel ilan ya da kendi satışın varsa Getmobil'in garantili yenilenmiş fiyatı hesaba katılmaz, sadece yedek
-kalır. Al ekranında her teklifin altında kârın yazar. İlanları yapıştırırken hasarlı, kilitli, başka model ve başka hafızalı
-ilanlar ile uç fiyatlar otomatik atlanır.
-
-Toptancı sekmesinde **"Toplu yükle"** listeyi okuyup tanınan bütün satırları tek dokunuşla kaydeder; sadece tanınmayanlar
-düzeltmen için ekranda kalır. "Önce kontrol et" ise kaydetmeden önizleme gösterir.
-
-Katalog kendi kendine büyür: mağazalarda ve Getmobil site haritasında görülen telefonlar otomatik eklenir, emin olunamayanlar
-Kaynaklar sayfasındaki "Katalogda olmayan telefonlar" listesine düşer ve tek dokunuşla eklenir.
+Kaynaklar **robots.txt kurallarına uyarak** ve kendini açıkça tanıtarak okunur; bot doğrulaması isteyen siteler atlatılmaya
+çalışılmaz.
 
 ## Bilgisayarda çalıştırma
 
@@ -78,7 +50,7 @@ npm run dev
 Tarayıcıda http://localhost:3000 adresini aç. Aynı Wi-Fi'daki telefondan bilgisayarın yerel IP adresiyle de açılır
 (ör. http://192.168.1.21:3000).
 
-Kaynakları elle güncellemek için:
+Getmobil fiyatlarını elle güncellemek için:
 
 ```bash
 npm run sources

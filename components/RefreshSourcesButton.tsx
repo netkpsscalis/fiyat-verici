@@ -2,9 +2,9 @@
 
 import { RotateCcw } from "lucide-react";
 import { useState, useTransition } from "react";
-import { refreshSources } from "@/app/kaynaklar/actions";
+import { refreshSources } from "@/app/al/actions";
 
-/** Modelin otomatik kaynaklarını hemen okur; bitince `onDone` ile fiyatlar yeniden yüklenir. */
+/** Modelin Getmobil fiyatlarını hemen okur; bitince `onDone` ile fiyatlar yeniden yüklenir. */
 export function RefreshSourcesButton({
   modelId,
   variantId,
@@ -33,7 +33,7 @@ export function RefreshSourcesButton({
         className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line bg-paper px-3 text-sm font-medium hover:border-muted disabled:opacity-60"
       >
         <RotateCcw aria-hidden size={15} className={pending ? "animate-spin" : undefined} />
-        {pending ? "Kaynaklar okunuyor…" : "Kaynakları güncelle"}
+        {pending ? "Getmobil okunuyor…" : "Getmobil fiyatlarını yenile"}
       </button>
       {message && (
         <p role="status" className="text-xs text-muted">

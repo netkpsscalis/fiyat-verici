@@ -2,7 +2,7 @@
  * Günlük fiyat güncelleme. Örnekler:
  *   npm run sources
  *   npm run sources -- --source=getmobil --model=apple-iphone-15-pro
- *   npm run sources -- --source=vatan
+ *   npm run sources -- --source=getmobil
  */
 import { existsSync } from "node:fs";
 

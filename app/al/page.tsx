@@ -3,7 +3,7 @@ import { BuyWizard } from "@/components/BuyWizard";
 import { getCatalog, getOverrides, getSettings } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
-/** "Kaynakları güncelle" birkaç siteyi sırayla okuyabilir */
+/** "Getmobil fiyatlarını yenile" birkaç sayfayı sırayla okuyabilir */
 export const maxDuration = 60;
 export const metadata: Metadata = { title: "Cihaz al" };
 

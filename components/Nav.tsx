@@ -1,15 +1,12 @@
 "use client";
 
 import clsx from "clsx";
-import { ChartLine, HandCoins, Settings, Tag, Truck } from "lucide-react";
+import { HandCoins, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const ITEMS = [
   { href: "/al", label: "Al", hint: "Müşteriden alış", icon: HandCoins },
-  { href: "/sat", label: "Sat", hint: "Sıfır satış", icon: Tag },
-  { href: "/toptanci", label: "Toptancı", hint: "Toptancı listesi yükle", icon: Truck },
-  { href: "/piyasa", label: "Piyasa", hint: "Fiyat verileri", icon: ChartLine },
   { href: "/ayarlar", label: "Ayarlar", hint: "Kâr payları ve kesintiler", icon: Settings },
 ];
 

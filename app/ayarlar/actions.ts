@@ -25,11 +25,6 @@ const settingsInput = z.object({
     refurb_retail: sourceAdjust,
   }),
   buybackRatio: z.number().min(0.4).max(1),
-  newSale: z.object({
-    margin: pct(50),
-    minProfit: z.number().min(0).max(100_000),
-    wholesaleFromRetail: z.number().min(0.5).max(1),
-  }),
 });
 
 const overrideInput = z.object({

@@ -50,8 +50,8 @@ type SourceKey = keyof PricingSettings["sourceAdjust"];
 
 const SOURCE_ROWS: { key: SourceKey; label: string; help: string }[] = [
   { key: "own_sell", label: "Kendi satışların", help: "Dükkanda sattığın fiyatlar. En güvenilir kaynak." },
-  { key: "used_listing", label: "2. el ilanlar (Sahibinden vb.)", help: "İlan fiyatında pazarlık payı vardır." },
-  { key: "refurb_retail", label: "Yenilenmiş cihaz fiyatları (Getmobil)", help: "Garantili, yenilenmiş perakende fiyatı." },
+  { key: "used_listing", label: "2. el ilanlar (Sahibinden vb.)", help: "Sahibinden, Dolap, Letgo ilan fiyatları. Dükkandaki satış fiyatın sayılır." },
+  { key: "refurb_retail", label: "Yenilenmiş cihaz fiyatları (Getmobil)", help: "Garantili yenilenmiş fiyat. İlan ya da kendi satışın yoksa kullanılır." },
 ];
 
 export function SettingsForm({ settings, overrides }: { settings: PricingSettings; overrides: Overrides }) {
@@ -63,7 +63,6 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
   const setM = (k: keyof PricingSettings["buyMargins"], v: number) => setS({ ...s, buyMargins: { ...s.buyMargins, [k]: v } });
   const setAdjust = (key: SourceKey, patch: Partial<SourceAdjust>) =>
     setS({ ...s, sourceAdjust: { ...s.sourceAdjust, [key]: { ...s.sourceAdjust[key], ...patch } } });
-  const setN = (k: keyof PricingSettings["newSale"], v: number) => setS({ ...s, newSale: { ...s.newSale, [k]: v } });
 
   function setOverride(factorId: string, optionId: string, def: Adjustment, next: Partial<Adjustment>) {
     const key = overrideKey(factorId, optionId);
@@ -172,21 +171,6 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
           >
             Şimdi hesapla
           </button>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-line bg-paper px-4 py-2 lg:px-6">
-        <h2 className="eyebrow pt-3 pb-1 text-muted">Sıfır satış</h2>
-        <div className="divide-y divide-line">
-          <Field label="Maliyet üstü kâr" value={s.newSale.margin} onChange={(v) => setN("margin", v)} suffix="%" />
-          <Field label="Cihaz başı en az kâr" value={s.newSale.minProfit} onChange={(v) => setN("minProfit", v)} suffix="₺" step={50} />
-          <Field
-            label="Toptan fiyat tahmini"
-            help="Toptancı fiyatı yoksa piyasadaki en düşük fiyatın yüzde kaçı maliyet sayılır"
-            value={pctOf(s.newSale.wholesaleFromRetail)}
-            onChange={(v) => setN("wholesaleFromRetail", v / 100)}
-            suffix="%"
-          />
         </div>
       </section>
 

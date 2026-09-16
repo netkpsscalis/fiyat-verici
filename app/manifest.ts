@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Fiyat Verici",
     short_name: "Fiyat Verici",
-    description: "Telefon alış ve satış fiyatlarını piyasa verisiyle hesaplar.",
+    description: "İkinci el telefon alış fiyatını piyasa verisiyle hesaplar.",
     start_url: "/al",
     display: "standalone",
     orientation: "portrait",

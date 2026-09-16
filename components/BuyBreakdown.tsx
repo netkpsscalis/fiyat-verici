@@ -7,7 +7,6 @@ import type { PricingSettings } from "@/lib/pricing/settings";
 export const METHOD_LABELS: Record<Reference["method"], string> = {
   market: "2. el piyasa fiyatlarından",
   buyback: "Rakip alış tekliflerinden geri hesaplandı",
-  new_depreciation: "Sıfır fiyattan yaşa göre tahmin edildi",
   none: "Veri yok",
 };
 

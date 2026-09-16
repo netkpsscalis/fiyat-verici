@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addVariantToModel } from "@/app/kaynaklar/actions";
+import { addVariantToModel } from "@/app/al/actions";
 import { Chip } from "@/components/Chip";
 import { formatStorage } from "@/lib/format";
 

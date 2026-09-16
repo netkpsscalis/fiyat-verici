@@ -24,9 +24,6 @@ export default async function AyarlarPage() {
           <Link href="/gecmis" className="rounded-md border border-line bg-paper px-3 py-2 hover:border-muted">
             Geçmiş
           </Link>
-          <Link href="/kaynaklar" className="rounded-md border border-line bg-paper px-3 py-2 hover:border-muted">
-            Kaynaklar
-          </Link>
           {authEnabled() && (
             <form action={logout}>
               <button type="submit" className="rounded-md border border-line bg-paper px-3 py-2 hover:border-muted">

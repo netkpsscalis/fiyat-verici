@@ -1,23 +1,18 @@
 /**
- * Kaynak çalıştırıcı: Getmobil ve takip edilen linkleri okur, sonuçları piyasa fiyatı olarak yazar.
+ * Kaynak çalıştırıcı: Getmobil'deki 2. el (yenilenmiş) fiyatları okur, sonuçları piyasa fiyatı olarak yazar.
  * Aynı gün tekrar çalışırsa o günün kaydını günceller (çift kayıt olmaz).
  */
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { modelId as buildModelId, variantId as buildVariantId } from "@/data/seed/devices";
 import { guessReleaseYear } from "@/lib/catalogYear";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { filterOutliers, median } from "@/lib/pricing/stats";
+import { BRAND_NAMES } from "./catalogAuto";
 import { fetchGetmobil, GETMOBIL_SITEMAP, modelsFromSitemap } from "./getmobil";
-import { fetchItemListSite, ITEMLIST_SITES } from "./itemList";
-import { fetchVatan } from "./vatan";
-import { politeFetch, sourceNameFromUrl } from "./http";
-import { extractOffers } from "./jsonld";
-import { pickTrackedPrice } from "./pick";
-import { BRAND_NAMES, catalogCandidate } from "./catalogAuto";
-import type { UnmatchedProduct } from "./unmatched";
+import { politeFetch } from "./http";
 
-export const SOURCES = ["getmobil", "vatan", ...ITEMLIST_SITES.map((s) => s.id), "tracked"] as const;
+export const SOURCES = ["getmobil"] as const;
 export type SourceId = string;
 
 export interface RunSummary {
@@ -84,48 +79,6 @@ async function ensureVariant(c: { brandId: string; name: string; ramGb: number |
   const vId = buildVariantId(modelId, variant);
   await db.insert(schema.variants).values({ id: vId, modelId, ...variant }).onConflictDoNothing();
   return vId;
-}
-
-/**
- * Eşleşmeyen ürünler: telefon olduğu anlaşılanlar kataloğa eklenip fiyatı yazılır,
- * emin olunamayanlar kullanıcının onayı için listeye düşer.
- */
-async function absorbUnmatched(
-  source: string,
-  items: UnmatchedProduct[],
-  warranty: typeof schema.priceObservations.$inferInsert.warranty,
-): Promise<{ added: number; pending: number }> {
-  let added = 0;
-  const pending: UnmatchedProduct[] = [];
-  for (const u of items) {
-    const candidate = catalogCandidate(u);
-    if (!candidate) {
-      pending.push(u);
-      continue;
-    }
-    const variantId = await ensureVariant(candidate);
-    if (u.price) {
-      await writeDaily({ variantId, kind: "new_retail", source, price: u.price, url: null, note: u.name, warranty });
-    }
-    added++;
-  }
-  await recordUnmatched(source, pending);
-  return { added, pending: pending.length };
-}
-
-/** Katalogda olmayan telefonları biriktirir; kullanıcı Kaynaklar sayfasından ekler. */
-async function recordUnmatched(source: string, items: UnmatchedProduct[]) {
-  const lastSeenAt = new Date();
-  for (const u of items.slice(0, 60)) {
-    const name = u.name.slice(0, 140);
-    await db
-      .insert(schema.unmatchedProducts)
-      .values({ source, name, price: u.price, brandId: u.brandId, ramGb: u.ramGb, storageGb: u.storageGb, lastSeenAt })
-      .onConflictDoUpdate({
-        target: [schema.unmatchedProducts.source, schema.unmatchedProducts.name],
-        set: { price: u.price, lastSeenAt, seenCount: sql`${schema.unmatchedProducts.seenCount} + 1` },
-      });
-  }
 }
 
 async function setStatus(source: string, ok: boolean, count: number, error: string | null) {
@@ -204,118 +157,10 @@ export async function runGetmobil(opts: { modelIds?: string[]; log?: (m: string)
   }
 }
 
-/** Vatan Bilgisayar: marka kategorisi sayfalarından sıfır cihaz fiyatları. */
-export async function runVatan(opts: { log?: (m: string) => void } = {}): Promise<RunSummary> {
-  const log = opts.log ?? (() => {});
-  try {
-    const catalog = await getCatalog();
-    const { results, unmatched } = await fetchVatan(catalog.flatMap((b) => b.models), log);
-    const absorbed = await absorbUnmatched("vatan", unmatched, "resmi");
-    if (absorbed.added) log(`  kataloğa eklenen yeni model: ${absorbed.added}`);
-    for (const r of results) {
-      await writeDaily({
-        variantId: r.variantId,
-        kind: "new_retail",
-        source: "vatan",
-        price: r.price,
-        url: r.url,
-        note: r.name,
-        warranty: r.warranty,
-      });
-    }
-    const message = `${results.length + absorbed.added} cihazın sıfır fiyatı güncellendi${absorbed.added ? `, ${absorbed.added} yeni model eklendi` : ""}`;
-    await setStatus("vatan", results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
-    return { source: "vatan", ok: results.length > 0, count: results.length, message };
-  } catch (e) {
-    const message = (e as Error).message;
-    await setStatus("vatan", false, 0, message);
-    return { source: "vatan", ok: false, count: 0, message };
-  }
-}
-
-/** Kategori sayfasında ürün listesi yayınlayan mağazalar: Turkcell Pasaj, Arçelik, Beko. */
-export async function runItemListSite(siteId: string, opts: { log?: (m: string) => void } = {}): Promise<RunSummary> {
-  const log = opts.log ?? (() => {});
-  const site = ITEMLIST_SITES.find((s) => s.id === siteId);
-  if (!site) return { source: siteId, ok: false, count: 0, message: "Bilinmeyen mağaza." };
-  try {
-    const catalog = await getCatalog();
-    const { results, unmatched } = await fetchItemListSite(site, catalog.flatMap((b) => b.models), log);
-    const absorbed = await absorbUnmatched(site.id, unmatched, site.warranty);
-    if (absorbed.added) log(`  kataloğa eklenen yeni model: ${absorbed.added}`);
-    for (const r of results) {
-      await writeDaily({
-        variantId: r.variantId,
-        kind: "new_retail",
-        source: site.id,
-        price: r.price,
-        url: r.url,
-        note: r.name,
-        warranty: site.warranty,
-      });
-    }
-    const message = `${results.length + absorbed.added} cihazın sıfır fiyatı güncellendi${absorbed.added ? `, ${absorbed.added} yeni model eklendi` : ""}`;
-    await setStatus(site.id, results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
-    return { source: site.id, ok: results.length > 0, count: results.length, message };
-  } catch (e) {
-    const message = (e as Error).message;
-    await setStatus(site.id, false, 0, message);
-    return { source: site.id, ok: false, count: 0, message };
-  }
-}
-
-export async function runTracked(opts: { variantIds?: string[]; log?: (m: string) => void } = {}): Promise<RunSummary> {
-  const log = opts.log ?? (() => {});
-  const rows = await db
-    .select({ t: schema.trackedUrls, v: schema.variants })
-    .from(schema.trackedUrls)
-    .innerJoin(schema.variants, eq(schema.trackedUrls.variantId, schema.variants.id))
-    .where(opts.variantIds ? inArray(schema.trackedUrls.variantId, opts.variantIds) : undefined);
-
-  // Tek "başlangıç fiyatı" veren sayfalar için her modelin en düşük hafızası gerekir
-  const modelIds = [...new Set(rows.map((r) => r.v.modelId))];
-  const siblings = modelIds.length
-    ? await db.select().from(schema.variants).where(inArray(schema.variants.modelId, modelIds))
-    : [];
-  const lowest = new Map<string, number>();
-  for (const s of siblings) lowest.set(s.modelId, Math.min(lowest.get(s.modelId) ?? Infinity, s.storageGb));
-
-  let count = 0;
-  let failed = 0;
-  for (const { t, v } of rows) {
-    try {
-      const offers = extractOffers(await politeFetch(t.url));
-      const price = pickTrackedPrice(offers, v, lowest.get(v.modelId) ?? v.storageGb);
-      await writeDaily({ variantId: t.variantId, kind: t.kind, source: sourceNameFromUrl(t.url), price, url: t.url, note: null, warranty: t.warranty });
-      await db
-        .update(schema.trackedUrls)
-        .set({ lastPrice: price, lastCheckedAt: new Date(), lastError: null })
-        .where(eq(schema.trackedUrls.id, t.id));
-      count++;
-      log(`  ${t.url} → ${price}`);
-    } catch (e) {
-      failed++;
-      const msg = (e as Error).message;
-      await db.update(schema.trackedUrls).set({ lastCheckedAt: new Date(), lastError: msg }).where(eq(schema.trackedUrls.id, t.id));
-      log(`  ${t.url} → HATA: ${msg}`);
-    }
-  }
-  const message = `${count} link okundu${failed ? `, ${failed} link okunamadı` : ""}`;
-  if (!opts.variantIds) await setStatus("tracked", failed === 0 || count > 0, count, failed ? `${failed} link okunamadı` : null);
-  return { source: "tracked", ok: failed === 0 || count > 0, count, message };
-}
-
 export async function runAll(opts: { only?: SourceId; modelIds?: string[]; log?: (m: string) => void } = {}): Promise<RunSummary[]> {
   const enabled = await enabledSources();
-  const out: RunSummary[] = [];
-  for (const s of SOURCES) {
-    if (opts.only && opts.only !== s) continue;
-    if (!opts.only && !enabled.has(s)) continue;
-    opts.log?.(`▶ ${s}`);
-    if (s === "getmobil") out.push(await runGetmobil(opts));
-    else if (s === "vatan") out.push(await runVatan({ log: opts.log }));
-    else if (ITEMLIST_SITES.some((site) => site.id === s)) out.push(await runItemListSite(s, { log: opts.log }));
-    else out.push(await runTracked({ log: opts.log }));
-  }
-  return out;
+  if (opts.only && opts.only !== "getmobil") return [];
+  if (!opts.only && !enabled.has("getmobil")) return [];
+  opts.log?.("▶ getmobil");
+  return [await runGetmobil(opts)];
 }

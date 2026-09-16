@@ -83,31 +83,6 @@ export async function getObservations(variantId: string): Promise<ObservationDTO
   return rows.map(toDTO);
 }
 
-export interface RecentObservation extends ObservationDTO {
-  variantId: string;
-  modelName: string;
-  ramGb: number | null;
-  storageGb: number;
-}
-
-export async function getRecentObservations(opts: { variantId?: string; limit?: number } = {}): Promise<RecentObservation[]> {
-  const rows = await db
-    .select({ o: schema.priceObservations, v: schema.variants, m: schema.models })
-    .from(schema.priceObservations)
-    .innerJoin(schema.variants, eq(schema.priceObservations.variantId, schema.variants.id))
-    .innerJoin(schema.models, eq(schema.variants.modelId, schema.models.id))
-    .where(opts.variantId ? eq(schema.priceObservations.variantId, opts.variantId) : undefined)
-    .orderBy(desc(schema.priceObservations.observedAt), desc(schema.priceObservations.id))
-    .limit(opts.limit ?? 50);
-  return rows.map(({ o, v, m }) => ({
-    ...toDTO(o),
-    variantId: v.id,
-    modelName: m.name,
-    ramGb: v.ramGb,
-    storageGb: v.storageGb,
-  }));
-}
-
 export async function getSettings(): Promise<PricingSettings> {
   const [row] = await db.select().from(schema.settings).where(eq(schema.settings.key, "pricing"));
   return mergeSettings(row?.value as Partial<PricingSettings> | undefined);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultSelection } from "./conditions";
-import { computeAdjustments, computeBuyQuote, computeReference, computeSaleQuote, type Observation } from "./engine";
+import { computeAdjustments, computeBuyQuote, computeReference, type Observation } from "./engine";
 import { DEFAULT_SETTINGS } from "./settings";
 import { DAY_MS, filterOutliers, roundPrice, weightedMedian } from "./stats";
 
@@ -77,13 +77,6 @@ describe("computeReference", () => {
     const r = computeReference([obs("buyback", 31_200)], base);
     expect(r.method).toBe("buyback");
     expect(r.value).toBeCloseTo(40_000);
-  });
-
-  it("hiç 2. el veri yoksa sıfır fiyattan yaşa göre tahmin eder", () => {
-    // 2023 çıkışlı, 2026'da 3 yaşında → 0.53
-    const r = computeReference([obs("new_retail", 60_000)], base);
-    expect(r.method).toBe("new_depreciation");
-    expect(r.value).toBeCloseTo(31_800);
   });
 
   it("yenilenmiş fiyat dükkan 2. el fiyatına çevrilir", () => {
@@ -201,41 +194,5 @@ describe("computeBuyQuote", () => {
     const q = computeBuyQuote({ ...input, observations: [] });
     expect(q.offers).toBeNull();
     expect(q.warnings.join(" ")).toMatch(/fiyat verisi yok/);
-  });
-});
-
-describe("computeSaleQuote", () => {
-  it("toptan maliyet + kâr, piyasa medyanıyla sınırlı", () => {
-    const q = computeSaleQuote({
-      observations: [
-        obs("new_wholesale", 50_000, 1, "supplier"),
-        obs("new_wholesale", 51_000, 2, "supplier"),
-        obs("new_retail", 52_500, 1, "akakce"),
-        obs("new_retail", 53_500, 1, "cimri"),
-      ],
-      settings: DEFAULT_SETTINGS,
-      now: NOW,
-    });
-    expect(q.cost?.value).toBe(50_000);
-    expect(q.prices).toEqual({ min: 51_000, mid: 53_000, max: 53_000 });
-  });
-
-  it("toptan fiyat yoksa maliyeti perakendeden tahmin eder", () => {
-    const q = computeSaleQuote({ observations: [obs("new_retail", 20_000)], settings: DEFAULT_SETTINGS, now: NOW });
-    expect(q.cost?.estimated).toBe(true);
-    expect(q.cost?.value).toBeCloseTo(18_600);
-  });
-
-  it("garanti tipine göre filtreler", () => {
-    const q = computeSaleQuote({
-      observations: [
-        { ...obs("new_wholesale", 50_000), warranty: "ithalatci" },
-        { ...obs("new_wholesale", 56_000), warranty: "resmi" },
-      ],
-      warranty: "resmi",
-      settings: DEFAULT_SETTINGS,
-      now: NOW,
-    });
-    expect(q.cost?.value).toBe(56_000);
   });
 });

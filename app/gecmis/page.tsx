@@ -47,10 +47,10 @@ export default async function GecmisPage() {
       </header>
 
       <section className="space-y-3">
-        <h2 className="eyebrow text-muted">Alış ve satışlar</h2>
+        <h2 className="eyebrow text-muted">Alışlar</h2>
         {txs.length === 0 ? (
           <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-muted">
-            Henüz kayıt yok. Teklif ekranındaki &ldquo;Aldım&rdquo; ya da satış ekranındaki &ldquo;Sattım&rdquo; ile eklenir.
+            Henüz kayıt yok. Teklif ekranındaki &ldquo;Aldım&rdquo; ile eklenir.
           </p>
         ) : (
           <ul className="divide-y divide-line rounded-lg border border-line bg-paper">
@@ -89,7 +89,7 @@ export default async function GecmisPage() {
                       {m.name} · {variantLabel(v)}
                     </p>
                     <p className="text-xs text-muted">
-                      {q.mode === "buy" ? "Alış teklifi" : "Satış fiyatı"} · {age(q.createdAt)}
+                      Alış teklifi · {age(q.createdAt)}
                     </p>
                   </div>
                   {offers && (

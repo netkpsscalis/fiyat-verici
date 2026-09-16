@@ -1,7 +1,6 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { fetchMarket, recordTransaction, saveQuote } from "@/app/actions";
 import { BuyBreakdown } from "@/components/BuyBreakdown";
@@ -266,12 +265,7 @@ function BuyTag({
         !quote ? (
           "Fiyatlar yükleniyor…"
         ) : (
-          <span>
-            Bu model için fiyat verisi yok.{" "}
-            <Link href={`/piyasa?variant=${variantId}`} className="underline underline-offset-2">
-              Fiyat ekle
-            </Link>
-          </span>
+          <span>Bu model için fiyat verisi yok. “İlan fiyatlarını yapıştır” ile ekle.</span>
         )
       }
       footer={
