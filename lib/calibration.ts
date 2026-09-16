@@ -8,7 +8,7 @@ import { db, schema } from "@/lib/db/client";
 import { computeCalibrationFactor, type CalibrationSample } from "@/lib/pricing/calibrate";
 import type { Selection } from "@/lib/pricing/conditions";
 import { computeAdjustments, computeReference, type Observation } from "@/lib/pricing/engine";
-import { DEFAULT_SETTINGS } from "@/lib/pricing/settings";
+import { brandGroupOf, DEFAULT_SETTINGS } from "@/lib/pricing/settings";
 import { DAY_MS } from "@/lib/pricing/stats";
 
 const LOOKBACK_DAYS = 180;
@@ -67,7 +67,7 @@ export async function recalculateCalibration(): Promise<CalibrationResult> {
         Math.abs(o.observedAt.getTime() - at.getTime()) <= NEAR_DAYS * DAY_MS,
     );
     if (near.length === 0) return null;
-    const ref = computeReference(near.map(toObservation), { now: at, settings: base, releaseYear: model.releaseYear });
+    const ref = computeReference(near.map(toObservation), { now: at, settings: base, releaseYear: model.releaseYear, brandId: model.brandId });
     return ref.method === "market" && ref.value ? { value: ref.value, model } : null;
   }
 
@@ -88,7 +88,7 @@ export async function recalculateCalibration(): Promise<CalibrationResult> {
     const adj = computeAdjustments(ref.model.family, (buy.conditions ?? {}) as Selection, overrides);
     if (adj.blocked.length) continue;
     const resale = ref.value * adj.multiplier - adj.fixedTotal;
-    const suggestedMid = resale * (1 - base.buyMargins.mid / 100);
+    const suggestedMid = resale * (1 - base.groups[brandGroupOf(ref.model.brandId)].margins.mid / 100);
     if (suggestedMid <= 0) continue;
     samples.push({ actual: buy.price, predicted: suggestedMid });
     fromBuys++;

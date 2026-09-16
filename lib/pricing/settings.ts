@@ -15,12 +15,34 @@ export interface Calibration {
   updatedAt: number | null;
 }
 
-/** Fiyat motorunun ayarları. Varsayılanlar burada; kullanıcı Ayarlar sayfasından değiştirir. */
-export interface PricingSettings {
+/** Marka grupları: Android cihazlar 2. elde daha hızlı değer kaybeder ve ilan fiyatına satılamaz */
+export const BRAND_GROUPS = ["apple", "samsung", "xiaomi", "diger"] as const;
+export type BrandGroup = (typeof BRAND_GROUPS)[number];
+
+export const BRAND_GROUP_LABELS: Record<BrandGroup, string> = {
+  apple: "Apple (iPhone)",
+  samsung: "Samsung",
+  xiaomi: "Xiaomi / Redmi / POCO",
+  diger: "Diğer Android",
+};
+
+export function brandGroupOf(brandId: string): BrandGroup {
+  return brandId === "apple" || brandId === "samsung" || brandId === "xiaomi" ? brandId : "diger";
+}
+
+export interface GroupPricing {
   /** Alış teklifinde tahmini satış değerinden düşülen kâr payı (%) */
-  buyMargins: { max: number; mid: number; min: number };
+  margins: { max: number; mid: number; min: number };
   /** Bir cihazdan beklenen en az kâr (TL). "En çok" teklif bunun altına inmez. */
   minProfit: number;
+  /** İlan ve yenilenmiş fiyatının ne kadarına gerçekten satılır (1 = ilan fiyatına) */
+  saleFactor: number;
+}
+
+/** Fiyat motorunun ayarları. Varsayılanlar burada; kullanıcı Ayarlar sayfasından değiştirir. */
+export interface PricingSettings {
+  /** Marka grubuna göre kâr payları ve satış oranı */
+  groups: Record<BrandGroup, GroupPricing>;
   /** 2. el kaynakların dükkan fiyatına çevrilmesi */
   sourceAdjust: Record<"own_sell" | "used_listing" | "refurb_retail", SourceAdjust>;
   /** Kendi satışlarından öğrenilen düzeltme (otomatik hesaplanır) */
@@ -34,9 +56,15 @@ export interface PricingSettings {
 }
 
 export const DEFAULT_SETTINGS: PricingSettings = {
-  // İlan 26.000 → en çok 23.400, önerilen 22.600, en az 21.600: satarken kazan, müşteriyi kaçırma
-  buyMargins: { max: 10, mid: 13, min: 17 },
-  minProfit: 750,
+  // 26.000'lik ilan için teklifler (en az / ortalama / en çok):
+  // iPhone 21.500 / 22.500 / 23.250 · Samsung 19.000 / 20.250 / 21.250 · Xiaomi 17.300 / 18.400 / 19.600
+  // Android ikinci elde iPhone'dan hızlı değer kaybeder, ilan fiyatından pazarlıkla satılır, rafta daha uzun bekler.
+  groups: {
+    apple: { margins: { max: 10, mid: 13, min: 17 }, minProfit: 750, saleFactor: 1 },
+    samsung: { margins: { max: 13, mid: 17, min: 22 }, minProfit: 1000, saleFactor: 0.94 },
+    xiaomi: { margins: { max: 16, mid: 21, min: 26 }, minProfit: 1000, saleFactor: 0.9 },
+    diger: { margins: { max: 18, mid: 23, min: 30 }, minProfit: 1000, saleFactor: 0.88 },
+  },
   sourceAdjust: {
     // Kendi satışın gerçeğin ta kendisi
     own_sell: { factor: 1, weight: 2 },
@@ -53,7 +81,11 @@ export const DEFAULT_SETTINGS: PricingSettings = {
 
 export const MARKET_KINDS: ObservationKind[] = ["own_sell", "used_listing", "refurb_retail"];
 
-type StoredSettings = Partial<PricingSettings> & {
+type StoredSettings = Partial<Omit<PricingSettings, "groups">> & {
+  groups?: Partial<Record<BrandGroup, Partial<GroupPricing>>>;
+  /** Eski sürüm: tek kâr payı (iPhone grubuna taşınır) */
+  buyMargins?: GroupPricing["margins"];
+  minProfit?: number;
   /** Eski sürüm: ilan pazarlık payı (%) */
   listingDiscount?: number;
   /** Eski sürüm: yenilenmiş fiyat oranı */
@@ -71,14 +103,38 @@ export function mergeSettings(stored: StoredSettings | null | undefined): Pricin
     sourceAdjust.refurb_retail = { ...sourceAdjust.refurb_retail, factor: stored.refurbFactor };
   }
   // Eski sürümden kalan sıfır satış alanları taşınmaz
-  const { newSale: _n, depreciation: _d, listingDiscount: _l, refurbFactor: _r, ...rest } = stored as StoredSettings & {
+  const groups = Object.fromEntries(
+    BRAND_GROUPS.map((g) => {
+      const def = DEFAULT_SETTINGS.groups[g];
+      const legacy = g === "apple" ? { margins: stored.buyMargins, minProfit: stored.minProfit } : {};
+      const cur = stored.groups?.[g] ?? {};
+      return [
+        g,
+        {
+          margins: { ...def.margins, ...legacy.margins, ...cur.margins },
+          minProfit: cur.minProfit ?? legacy.minProfit ?? def.minProfit,
+          saleFactor: cur.saleFactor ?? def.saleFactor,
+        },
+      ];
+    }),
+  ) as Record<BrandGroup, GroupPricing>;
+  const {
+    newSale: _n,
+    depreciation: _d,
+    listingDiscount: _l,
+    refurbFactor: _r,
+    buyMargins: _b,
+    minProfit: _m,
+    groups: _g,
+    ...rest
+  } = stored as StoredSettings & {
     newSale?: unknown;
     depreciation?: unknown;
   };
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
-    buyMargins: { ...DEFAULT_SETTINGS.buyMargins, ...stored.buyMargins },
+    groups,
     calibration: { ...DEFAULT_SETTINGS.calibration, ...stored.calibration },
     sourceAdjust,
   };

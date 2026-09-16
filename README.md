@@ -19,8 +19,17 @@ Telefona uygulama gibi kurulur (PWA).
    tazeliğe göre ağırlıklandırılır, uç değerler atılır, ortanca alınır. İlan ya da kendi satışın yoksa Getmobil'in
    garantili yenilenmiş fiyatı %82 oranıyla kullanılır.
 2. **Durum kesintileri:** Cihazın durumuna göre yüzde ya da TL kesintiler uygulanır (Ayarlar'dan değiştirilebilir).
-3. **Teklifler:** Satış değerinden kâr payı düşülür: en çok %10, ortalama %13, en az %17. 26.000 TL'lik ilan →
-   21.500 / 22.500 / 23.250 TL teklif. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır. Her cihazda en az kâr
+3. **Teklifler:** Satış değerinden marka grubunun kâr payı düşülür. Android cihazlar ikinci elde daha hızlı değer kaybettiği
+   ve ilan fiyatından pazarlıkla satıldığı için ilan fiyatına ayrıca "satış oranı" uygulanır:
+
+   | Grup | Kâr payı (en çok / ortalama / en az) | Satış oranı | 26.000 TL'lik ilana teklif |
+   |---|---|---|---|
+   | Apple | %10 / %13 / %17 | %100 | 21.500 / 22.500 / 23.250 |
+   | Samsung | %13 / %17 / %22 | %94 | 19.000 / 20.250 / 21.250 |
+   | Xiaomi / Redmi / POCO | %16 / %21 / %26 | %90 | 17.300 / 18.400 / 19.600 |
+   | Diğer Android | %18 / %23 / %30 | %88 | |
+
+   Hepsi Ayarlar'dan değiştirilir. Kendi satış kayıtlarına satış oranı uygulanmaz. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır. Her cihazda en az kâr
    tutarı korunur.
 4. **Güven:** Veri azsa ya da eskiyse uygulama uyarır.
 5. **Kendi işlemlerinden öğrenme:** Önerilen fiyatlarla senin gerçekten aldığın fiyatlar karşılaştırılır; sürekli yüksek ya da

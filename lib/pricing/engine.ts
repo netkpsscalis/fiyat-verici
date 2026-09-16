@@ -11,7 +11,7 @@ import {
   type Overrides,
   type Selection,
 } from "./conditions";
-import { MARKET_KINDS, type PricingSettings } from "./settings";
+import { brandGroupOf, MARKET_KINDS, type PricingSettings } from "./settings";
 import { ageInDays, filterOutliers, freshnessWeight, median, roundPrice, weightedMedian } from "./stats";
 
 export interface Observation {
@@ -62,10 +62,13 @@ function recent(obs: Observation[], now: number, windowDays: number) {
   return inWin.length > 0 ? inWin : inWindow(obs, now, 90);
 }
 
-/** Kaynağın fiyatını dükkandaki 2. el satış fiyatına çevirir (ilan pazarlık payı, yenilenmiş farkı...) */
-function adjustForKind(o: Observation, s: PricingSettings): number {
+/**
+ * Kaynağın fiyatını dükkandaki 2. el satış fiyatına çevirir (yenilenmiş farkı, marka grubunun satış oranı).
+ * Kendi satışın gerçekleşmiş fiyattır, satış oranı ona uygulanmaz.
+ */
+function adjustForKind(o: Observation, s: PricingSettings, saleFactor: number): number {
   const adjust = s.sourceAdjust[o.kind as keyof PricingSettings["sourceAdjust"]];
-  return o.price * (adjust?.factor ?? 1);
+  return o.price * (adjust?.factor ?? 1) * (o.kind === "own_sell" ? 1 : saleFactor);
 }
 
 function kindWeight(o: Observation, s: PricingSettings): number {
@@ -78,10 +81,11 @@ function toUsed(o: Observation, adjusted: number, now: number): UsedObservation 
 
 export function computeReference(
   observations: Observation[],
-  opts: { now: Date | number; settings: PricingSettings; releaseYear: number },
+  opts: { now: Date | number; settings: PricingSettings; releaseYear: number; brandId?: string },
 ): Reference {
   const now = Number(opts.now);
   const s = opts.settings;
+  const saleFactor = s.groups[brandGroupOf(opts.brandId ?? "apple")].saleFactor;
 
   // 1) 2. el piyasa: kendi satışların, ilanlar, yenilenmiş satış fiyatları
   const calibration = s.calibration.samples >= 3 ? s.calibration.factor : 1;
@@ -95,7 +99,7 @@ export function computeReference(
   const market = local.length > 0 ? local : allMarket;
   if (market.length > 0) {
     const used = filterOutliers(
-      market.map((o) => toUsed(o, adjustForKind(o, s), now)),
+      market.map((o) => toUsed(o, adjustForKind(o, s, saleFactor), now)),
       (u) => u.adjusted,
     );
     const raw = weightedMedian(
@@ -201,6 +205,7 @@ export interface BuyQuote {
 export function computeBuyQuote(input: {
   observations: Observation[];
   family: Family;
+  brandId: string;
   releaseYear: number;
   selection: Selection;
   settings: PricingSettings;
@@ -209,7 +214,13 @@ export function computeBuyQuote(input: {
 }): BuyQuote {
   const now = Number(input.now ?? Date.now());
   const s = input.settings;
-  const reference = computeReference(input.observations, { now, settings: s, releaseYear: input.releaseYear });
+  const reference = computeReference(input.observations, {
+    now,
+    settings: s,
+    releaseYear: input.releaseYear,
+    brandId: input.brandId,
+  });
+  const group = s.groups[brandGroupOf(input.brandId)];
   const adjustments = computeAdjustments(input.family, input.selection, input.overrides);
   const warnings: string[] = [];
 
@@ -241,14 +252,14 @@ export function computeBuyQuote(input: {
   }
 
   const resale = Math.max(0, reference.value * adjustments.multiplier - adjustments.fixedTotal);
-  const m = s.buyMargins;
-  const max = Math.max(0, Math.min(resale * (1 - m.max / 100), resale - s.minProfit));
+  const m = group.margins;
+  const max = Math.max(0, Math.min(resale * (1 - m.max / 100), resale - group.minProfit));
   const min = Math.min(max, resale * (1 - m.min / 100));
   let mid = resale * (1 - m.mid / 100);
   if (competitor) mid = (mid + competitor.adjusted) / 2;
   mid = Math.min(max, Math.max(min, mid));
 
-  if (resale - max < s.minProfit) warnings.push("Kâr payı en az kâr tutarının altında kalıyor.");
+  if (resale - max < group.minProfit) warnings.push("Kâr payı en az kâr tutarının altında kalıyor.");
 
   return {
     reference,

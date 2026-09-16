@@ -2,7 +2,7 @@ import { ObservationList } from "@/components/ObservationList";
 import { CONFIDENCE_LABELS } from "@/components/PriceTag";
 import { adjustmentText, formatTL, sourceLabel } from "@/lib/format";
 import type { BuyQuote, Reference } from "@/lib/pricing/engine";
-import type { PricingSettings } from "@/lib/pricing/settings";
+import { BRAND_GROUP_LABELS, brandGroupOf, type PricingSettings } from "@/lib/pricing/settings";
 
 export const METHOD_LABELS: Record<Reference["method"], string> = {
   market: "2. el piyasa fiyatlarından",
@@ -11,9 +11,11 @@ export const METHOD_LABELS: Record<Reference["method"], string> = {
 };
 
 /** "Bu fiyat nereden geldi?" dökümü */
-export function BuyBreakdown({ quote, settings }: { quote: BuyQuote; settings: PricingSettings }) {
+export function BuyBreakdown({ quote, settings, brandId }: { quote: BuyQuote; settings: PricingSettings; brandId: string }) {
   const { reference: ref, adjustments: adj } = quote;
-  const m = settings.buyMargins;
+  const groupId = brandGroupOf(brandId);
+  const group = settings.groups[groupId];
+  const m = group.margins;
 
   return (
     <div className="space-y-5 text-sm">
@@ -85,8 +87,11 @@ export function BuyBreakdown({ quote, settings }: { quote: BuyQuote; settings: P
             ))}
           </ul>
           <p className="mt-1 text-muted">
-            {formatTL(quote.resale)}’ye satarsan. Kâr payları: en çok teklifte %{m.max}, ortalamada %{m.mid}, en azda %{m.min};
-            her cihazda en az {formatTL(settings.minProfit)} kâr bırakılır. Pazarlıkta “En çok”un üstüne çıkma.
+            {formatTL(quote.resale)}’ye satarsan. {BRAND_GROUP_LABELS[groupId]} kâr payları: en çok teklifte %{m.max},
+            ortalamada %{m.mid}, en azda %{m.min}; her cihazda en az {formatTL(group.minProfit)} kâr bırakılır.
+            {group.saleFactor < 1 &&
+              ` İlan fiyatının %${Math.round(group.saleFactor * 100)}’ine satılabileceği varsayıldı (pazarlık ve yavaş satış).`}{" "}
+            Pazarlıkta “En çok”un üstüne çıkma.
           </p>
         </div>
       )}

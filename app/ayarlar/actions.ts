@@ -14,11 +14,21 @@ const sourceAdjust = z.object({
   weight: z.number().min(0).max(5),
 });
 
-const settingsInput = z.object({
-  buyMargins: z
+const groupInput = z.object({
+  margins: z
     .object({ max: pct(60), mid: pct(60), min: pct(80) })
     .refine((m) => m.max <= m.mid && m.mid <= m.min, "Kâr payları sırayla artmalı: en çok ≤ ortalama ≤ en az."),
   minProfit: z.number().min(0).max(100_000),
+  saleFactor: z.number().min(0.5, "Satış oranı %50'den az olamaz.").max(1.1, "Satış oranı %110'dan fazla olamaz."),
+});
+
+const settingsInput = z.object({
+  groups: z.object({
+    apple: groupInput,
+    samsung: groupInput,
+    xiaomi: groupInput,
+    diger: groupInput,
+  }),
   sourceAdjust: z.object({
     own_sell: sourceAdjust,
     used_listing: sourceAdjust,

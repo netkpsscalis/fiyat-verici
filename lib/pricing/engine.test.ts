@@ -151,6 +151,7 @@ describe("computeBuyQuote", () => {
   const input = {
     observations: market,
     family: "iphone" as const,
+    brandId: "apple",
     releaseYear: 2023,
     selection: { ...defaultSelection("iphone"), pil_sagligi: "p90" },
     settings: DEFAULT_SETTINGS,
@@ -170,6 +171,20 @@ describe("computeBuyQuote", () => {
     expect(q.offers).toEqual({ min: 21_500, mid: 22_500, max: 23_250 });
   });
 
+  it("Samsung ve Xiaomi aynı ilan fiyatında daha düşük teklif alır", () => {
+    const listing = [obs("used_listing", 26_000)];
+    const samsung = computeBuyQuote({ ...input, family: "android", brandId: "samsung", observations: listing });
+    const xiaomi = computeBuyQuote({ ...input, family: "android", brandId: "xiaomi", observations: listing });
+    expect(samsung.resale).toBe(24_500);
+    expect(samsung.offers).toEqual({ min: 19_000, mid: 20_250, max: 21_250 });
+    expect(xiaomi.offers).toEqual({ min: 17_300, mid: 18_400, max: 19_600 });
+  });
+
+  it("kendi satışına satış oranı uygulanmaz", () => {
+    const q = computeBuyQuote({ ...input, family: "android", brandId: "xiaomi", observations: [obs("own_sell", 20_000)] });
+    expect(q.resale).toBe(20_000);
+  });
+
   it("rakip geri alım teklifi ortalama fiyatı etkiler ama sınırları aşmaz", () => {
     const q = computeBuyQuote({ ...input, observations: [...market, obs("buyback", 32_000, 1, "easycep")] });
     expect(q.offers!.mid).toBe(33_250); // (34.800 + 32.000) / 2 = 33.400 → aşağı yuvarla
@@ -179,7 +194,7 @@ describe("computeBuyQuote", () => {
   it("en az kâr tutarı korunur", () => {
     const cheap = [4_000, 4_000].map((p) => obs("own_sell", p));
     const q = computeBuyQuote({ ...input, observations: cheap });
-    expect(q.resale! - q.offers!.max).toBeGreaterThanOrEqual(DEFAULT_SETTINGS.minProfit);
+    expect(q.resale! - q.offers!.max).toBeGreaterThanOrEqual(DEFAULT_SETTINGS.groups.apple.minProfit);
     expect(q.offers!.min).toBeLessThanOrEqual(q.offers!.mid);
     expect(q.offers!.mid).toBeLessThanOrEqual(q.offers!.max);
   });

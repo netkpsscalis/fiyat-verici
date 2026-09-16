@@ -64,6 +64,7 @@ export function BuyWizard({
         ? computeBuyQuote({
             observations: rows,
             family: model.family,
+            brandId: model.brandId,
             releaseYear: model.releaseYear,
             selection,
             settings,
@@ -202,7 +203,7 @@ export function BuyWizard({
                 <h2 id="dokum-baslik" className="eyebrow border-b border-line pb-2 text-muted">
                   Bu fiyat nereden geldi?
                 </h2>
-                <BuyBreakdown quote={quote} settings={settings} />
+                <BuyBreakdown quote={quote} settings={settings} brandId={model.brandId} />
                 {variantId && <QuoteActions quote={quote} variantId={variantId} selection={selection} />}
               </section>
             )}

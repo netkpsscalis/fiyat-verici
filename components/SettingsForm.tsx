@@ -4,7 +4,15 @@ import clsx from "clsx";
 import { useState, useTransition } from "react";
 import { recalibrate, saveSettings } from "@/app/ayarlar/actions";
 import { type Adjustment, FACTORS, GROUPS, overrideKey, type Overrides } from "@/lib/pricing/conditions";
-import { DEFAULT_SETTINGS, type PricingSettings, type SourceAdjust } from "@/lib/pricing/settings";
+import {
+  BRAND_GROUP_LABELS,
+  BRAND_GROUPS,
+  type BrandGroup,
+  DEFAULT_SETTINGS,
+  type GroupPricing,
+  type PricingSettings,
+  type SourceAdjust,
+} from "@/lib/pricing/settings";
 
 const inputClass = "num h-11 w-24 rounded-lg border border-line bg-ground px-2 text-right text-lg font-bold";
 
@@ -60,7 +68,10 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
   const [message, setMessage] = useState<{ tone: "ok" | "stop"; text: string } | null>(null);
   const [pending, start] = useTransition();
 
-  const setM = (k: keyof PricingSettings["buyMargins"], v: number) => setS({ ...s, buyMargins: { ...s.buyMargins, [k]: v } });
+  const setGroup = (g: BrandGroup, patch: Partial<GroupPricing>) =>
+    setS({ ...s, groups: { ...s.groups, [g]: { ...s.groups[g], ...patch } } });
+  const setM = (g: BrandGroup, k: keyof GroupPricing["margins"], v: number) =>
+    setGroup(g, { margins: { ...s.groups[g].margins, [k]: v } });
   const setAdjust = (key: SourceKey, patch: Partial<SourceAdjust>) =>
     setS({ ...s, sourceAdjust: { ...s.sourceAdjust, [key]: { ...s.sourceAdjust[key], ...patch } } });
 
@@ -96,13 +107,43 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
 
   return (
     <div className="space-y-8">
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-xl font-bold [font-stretch:105%]">Marka gruplarına göre alış</h2>
+          <p className="mt-1 text-sm text-muted">
+            Android cihazlar ikinci elde iPhone&apos;dan hızlı değer kaybeder, ilan fiyatından pazarlıkla ve daha geç satılır. Bu
+            yüzden Samsung ve Xiaomi&apos;de kâr payı daha yüksek, satış oranı daha düşüktür. Satış oranı: ilan fiyatının yüzde
+            kaçına gerçekten satabildiğin.
+          </p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {BRAND_GROUPS.map((g) => {
+            const grp = s.groups[g];
+            return (
+              <div key={g} className="rounded-lg border border-line bg-paper px-4 py-2 lg:px-6">
+                <h3 className="pt-3 pb-1 font-display text-lg font-bold [font-stretch:105%]">{BRAND_GROUP_LABELS[g]}</h3>
+                <div className="divide-y divide-line">
+                  <Field label="En çok teklif · kâr payı" help="Pazarlıkta çıkabileceğin üst sınır" value={grp.margins.max} onChange={(v) => setM(g, "max", v)} suffix="%" />
+                  <Field label="Ortalama teklif · kâr payı" value={grp.margins.mid} onChange={(v) => setM(g, "mid", v)} suffix="%" />
+                  <Field label="En az teklif · kâr payı" help="İlk söyleyeceğin fiyat" value={grp.margins.min} onChange={(v) => setM(g, "min", v)} suffix="%" />
+                  <Field label="Cihaz başı en az kâr" value={grp.minProfit} onChange={(v) => setGroup(g, { minProfit: v })} suffix="₺" step={50} />
+                  <Field
+                    label="Satış oranı"
+                    help="İlan fiyatının yüzde kaçına satılır"
+                    value={pctOf(grp.saleFactor)}
+                    onChange={(v) => setGroup(g, { saleFactor: v / 100 })}
+                    suffix="%"
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="rounded-lg border border-line bg-paper px-4 py-2 lg:px-6">
-        <h2 className="eyebrow pt-3 pb-1 text-muted">Alış teklifi</h2>
+        <h2 className="eyebrow pt-3 pb-1 text-muted">Rakipler</h2>
         <div className="divide-y divide-line">
-          <Field label="En çok teklif · kâr payı" help="Pazarlıkta çıkabileceğin üst sınır" value={s.buyMargins.max} onChange={(v) => setM("max", v)} suffix="%" />
-          <Field label="Ortalama teklif · kâr payı" value={s.buyMargins.mid} onChange={(v) => setM("mid", v)} suffix="%" />
-          <Field label="En az teklif · kâr payı" help="İlk söyleyeceğin fiyat" value={s.buyMargins.min} onChange={(v) => setM("min", v)} suffix="%" />
-          <Field label="Cihaz başı en az kâr" value={s.minProfit} onChange={(v) => setS({ ...s, minProfit: v })} suffix="₺" step={50} />
           <Field
             label="Rakip alış oranı"
             help="Rakipler cihazı satış fiyatının yüzde kaçına alıyor"
