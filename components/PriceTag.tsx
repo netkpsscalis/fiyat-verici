@@ -18,6 +18,7 @@ export function PriceTag({
   subtitle,
   prices,
   labels = ["En az", "Ortalama", "En çok"],
+  notes,
   footer,
   blocked,
   empty,
@@ -28,6 +29,8 @@ export function PriceTag({
   subtitle?: string;
   prices: PriceTriple | null;
   labels?: [string, string, string];
+  /** Her fiyatın altında küçük not: alışta bırakılan kâr gibi */
+  notes?: [string, string, string];
   footer?: React.ReactNode;
   blocked?: string;
   empty?: React.ReactNode;
@@ -56,9 +59,9 @@ export function PriceTag({
 
       {prices ? (
         <div className={clsx("grid grid-cols-[1fr_1.35fr_1fr] items-end gap-2", compact ? "mt-1" : "mt-4")}>
-          <Figure label={labels[0]} value={prices.min} size={compact ? "sm" : "md"} loading={loading} />
-          <Figure label={labels[1]} value={prices.mid} size={compact ? "md" : "lg"} loading={loading} center />
-          <Figure label={labels[2]} value={prices.max} size={compact ? "sm" : "md"} loading={loading} right />
+          <Figure label={labels[0]} value={prices.min} note={notes?.[0]} size={compact ? "sm" : "md"} loading={loading} />
+          <Figure label={labels[1]} value={prices.mid} note={notes?.[1]} size={compact ? "md" : "lg"} loading={loading} center />
+          <Figure label={labels[2]} value={prices.max} note={notes?.[2]} size={compact ? "sm" : "md"} loading={loading} right />
         </div>
       ) : (
         <div className={clsx("text-sm font-medium", compact ? "mt-1 pl-5" : "mt-4")}>{empty}</div>
@@ -72,6 +75,7 @@ export function PriceTag({
 function Figure({
   label,
   value,
+  note,
   size,
   center,
   right,
@@ -79,6 +83,7 @@ function Figure({
 }: {
   label: string;
   value: number;
+  note?: string;
   size: "sm" | "md" | "lg";
   center?: boolean;
   right?: boolean;
@@ -99,6 +104,7 @@ function Figure({
       >
         {formatTL(value)}
       </p>
+      {note && <p className="num mt-0.5 truncate text-[0.7rem] font-semibold opacity-75">{note}</p>}
     </div>
   );
 }

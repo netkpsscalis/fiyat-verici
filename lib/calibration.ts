@@ -99,11 +99,10 @@ export async function recalculateCalibration(): Promise<CalibrationResult> {
 }
 
 async function save(result: CalibrationResult): Promise<CalibrationResult> {
-  const settings = await getSettings();
-  const value = {
-    ...settings,
-    calibration: { factor: result.factor, samples: result.samples, updatedAt: Date.now() },
-  };
+  // Sadece düzeltme alanı yazılır; diğer ayarlar kullanıcı değiştirmedikçe varsayılanlardan gelir
+  const [row] = await db.select().from(schema.settings).where(eq(schema.settings.key, "pricing"));
+  const stored = (row?.value ?? {}) as Record<string, unknown>;
+  const value = { ...stored, calibration: { factor: result.factor, samples: result.samples, updatedAt: Date.now() } };
   await db
     .insert(schema.settings)
     .values({ key: "pricing", value })

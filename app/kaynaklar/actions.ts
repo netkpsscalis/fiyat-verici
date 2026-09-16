@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { WARRANTY_TYPES } from "@/lib/db/schema";
+import { guessReleaseYear } from "@/lib/catalogYear";
 import { ITEMLIST_SITES } from "@/lib/sources/itemList";
 import { runGetmobil, runItemListSite, runTracked, runVatan, SOURCES } from "@/lib/sources/run";
 import type { ActionResult } from "@/lib/types";
@@ -126,7 +127,7 @@ export async function addModelToCatalog(input: z.input<typeof catalogInput>): Pr
         brandId: d.brandId,
         name: d.name,
         series: d.name.split(" ")[0],
-        releaseYear: new Date().getFullYear(),
+        releaseYear: guessReleaseYear(d.brandId, d.name) ?? new Date().getFullYear(),
         family: d.brandId === "apple" ? "iphone" : "android",
         hasBatteryHealth: d.brandId === "apple",
         sort: 0,

@@ -66,10 +66,31 @@ export function BuyBreakdown({ quote, settings }: { quote: BuyQuote; settings: P
         </Row>
       )}
 
-      <Row label="Kâr payları" value="">
-        En çok teklifte %{m.max}, ortalamada %{m.mid}, en azda %{m.min}. Her cihazda en az {formatTL(settings.minProfit)} kâr
-        bırakılır.
-      </Row>
+      {quote.offers && quote.resale !== null && (
+        <div>
+          <p className="font-semibold">Teklif verirsen kârın</p>
+          <ul className="mt-1 divide-y divide-line rounded-lg border border-line bg-paper">
+            {(
+              [
+                ["En az", quote.offers.min],
+                ["Ortalama", quote.offers.mid],
+                ["En çok", quote.offers.max],
+              ] as const
+            ).map(([label, offer]) => (
+              <li key={label} className="flex justify-between gap-3 px-3 py-2">
+                <span>
+                  {label} <span className="num text-muted">{formatTL(offer)}</span>
+                </span>
+                <span className="num font-semibold text-ok">+{formatTL(quote.resale! - offer)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-muted">
+            {formatTL(quote.resale)}’ye satarsan. Kâr payları: en çok teklifte %{m.max}, ortalamada %{m.mid}, en azda %{m.min};
+            her cihazda en az {formatTL(settings.minProfit)} kâr bırakılır. Pazarlıkta “En çok”un üstüne çıkma.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

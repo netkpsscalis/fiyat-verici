@@ -7,6 +7,7 @@ import { fetchMarket, recordTransaction, saveQuote } from "@/app/actions";
 import { BuyBreakdown } from "@/components/BuyBreakdown";
 import { AddVariantChips } from "@/components/AddVariantChips";
 import { Chip } from "@/components/Chip";
+import { ListingPasteBox } from "@/components/ListingPasteBox";
 import { ModelPicker, rememberModel } from "@/components/ModelPicker";
 import { CONFIDENCE_LABELS, PriceTag } from "@/components/PriceTag";
 import { RefreshSourcesButton } from "@/components/RefreshSourcesButton";
@@ -95,6 +96,7 @@ export function BuyWizard({
   }
 
   const variant = model?.variants.find((v) => v.id === variantId) ?? null;
+  const allModels = useMemo(() => catalog.flatMap((b) => b.models), [catalog]);
   const tagTitle = model ? `${model.name}${variant ? ` · ${variantLabel(variant)}` : ""}` : "";
 
   return (
@@ -141,6 +143,23 @@ export function BuyWizard({
               )}
             </FactorBlock>
 
+            {variantId && variant && (
+              <section aria-labelledby="piyasa-baslik" className="space-y-3">
+                <h2 id="piyasa-baslik" className="eyebrow border-b border-line pb-2 text-muted">
+                  Piyasa fiyatları
+                </h2>
+                <RefreshSourcesButton modelId={model.id} variantId={variantId} onDone={reloadMarket} />
+                <ListingPasteBox
+                  key={variantId}
+                  model={model}
+                  storageGb={variant.storageGb}
+                  variantId={variantId}
+                  models={allModels}
+                  onSaved={reloadMarket}
+                />
+              </section>
+            )}
+
             {variantId &&
               GROUPS.map((g) => {
                 const factors = factorsFor(model.family).filter((f) => f.group === g.id);
@@ -184,14 +203,13 @@ export function BuyWizard({
                 <h2 id="dokum-baslik" className="eyebrow border-b border-line pb-2 text-muted">
                   Bu fiyat nereden geldi?
                 </h2>
-                <RefreshSourcesButton modelId={model.id} variantId={variantId} onDone={reloadMarket} />
                 <BuyBreakdown quote={quote} settings={settings} />
                 {variantId && <QuoteActions quote={quote} variantId={variantId} selection={selection} />}
               </section>
             )}
 
             {/* Telefonda altta sabit duran etiketin arkasında içerik kalmasın */}
-            {variantId && <div aria-hidden className="h-36 lg:hidden" />}
+            {variantId && <div aria-hidden className="h-44 lg:hidden" />}
           </>
         )}
       </div>
@@ -233,6 +251,15 @@ function BuyTag({
       title="Alış teklifi"
       subtitle={title}
       prices={quote?.offers ?? null}
+      notes={
+        quote?.offers && quote.resale !== null
+          ? [
+              `kâr ${formatTL(quote.resale - quote.offers.min)}`,
+              `kâr ${formatTL(quote.resale - quote.offers.mid)}`,
+              `kâr ${formatTL(quote.resale - quote.offers.max)}`,
+            ]
+          : undefined
+      }
       loading={loading}
       blocked={blocked}
       empty={

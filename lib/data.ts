@@ -25,7 +25,21 @@ export async function getCatalog(): Promise<CatalogBrand[]> {
   const brandName = new Map(brands.map((b) => [b.id, b.name]));
   const modelsByBrand = new Map<string, CatalogModel[]>();
   // Yeni modeller önce: dükkana en çok onlar geliyor
-  for (const m of [...models].sort((a, b) => b.releaseYear - a.releaseYear || b.sort - a.sort)) {
+  const byName = new Intl.Collator("tr", { numeric: true });
+  // Aynı ailede üst model önce: "S25 Ultra, S25+, S25 Edge, S25, S25 FE"
+  const TIERS: [RegExp, number][] = [
+    [/\b(ultra|pro max)$/i, 0],
+    [/\bpro$/i, 1],
+    [/(\+|\bplus)$/i, 1.5],
+    [/\b(edge|air)$/i, 2],
+    [/(\bfe|\blite|\de)$/i, 4],
+  ];
+  const tier = (name: string) => TIERS.find(([re]) => re.test(name))?.[1] ?? 3;
+  const family = (name: string) => name.replace(/\s*(\+|plus|ultra|pro max|pro|edge|fe|lite)\s*$/i, "").replace(/(\d)e$/i, "$1");
+  for (const m of [...models].sort(
+    (a, b) =>
+      b.releaseYear - a.releaseYear || byName.compare(family(b.name), family(a.name)) || tier(a.name) - tier(b.name),
+  )) {
     const list = modelsByBrand.get(m.brandId) ?? [];
     list.push({
       id: m.id,

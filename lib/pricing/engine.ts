@@ -85,11 +85,14 @@ export function computeReference(
 
   // 1) 2. el piyasa: kendi satışların, ilanlar, yenilenmiş satış fiyatları
   const calibration = s.calibration.samples >= 3 ? s.calibration.factor : 1;
-  const market = recent(
+  const allMarket = recent(
     observations.filter((o) => (MARKET_KINDS as string[]).includes(o.kind)),
     now,
     s.windowDays,
   );
+  // Yerel ilan ya da kendi satışın varsa gerçek sokak fiyatı odur: garantili yenilenmiş fiyatı sadece yedek kalır
+  const local = allMarket.filter((o) => o.kind !== "refurb_retail");
+  const market = local.length > 0 ? local : allMarket;
   if (market.length > 0) {
     const used = filterOutliers(
       market.map((o) => toUsed(o, adjustForKind(o, s), now)),

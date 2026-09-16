@@ -92,21 +92,67 @@ export function PriceListImport({
   const [ocr, setOcr] = useState<{ progress: number } | null>(null);
   const [pending, start] = useTransition();
 
+  function buildDrafts(source: string): Draft[] {
+    return parsePriceList(source, models, learned).map((row, i) => ({
+      key: `${row.line}-${i}`,
+      row,
+      include: row.status === "ok" && !row.used,
+      priceText: row.price ? formatNumber(row.price) : "",
+      model: row.modelId ? (byId.get(row.modelId) ?? null) : null,
+      variantId: row.variantId,
+      editing: false,
+      remember: row.status === "no_model",
+    }));
+  }
+
   function read(source = text) {
-    const rows = parsePriceList(source, models, learned);
-    setDrafts(
-      rows.map((row, i) => ({
-        key: `${row.line}-${i}`,
-        row,
-        include: row.status === "ok" && !row.used,
-        priceText: row.price ? formatNumber(row.price) : "",
-        model: row.modelId ? (byId.get(row.modelId) ?? null) : null,
-        variantId: row.variantId,
-        editing: false,
-        remember: row.status === "no_model",
-      })),
-    );
+    const rows = buildDrafts(source);
+    setDrafts(rows);
     setMessage(rows.length ? null : { tone: "stop", text: "Listede fiyat satırı bulunamadı." });
+  }
+
+  /** Tek dokunuşla: listeyi oku, hazır satırların hepsini kaydet, sadece düzeltilecekleri önizlemede bırak */
+  function bulkUpload() {
+    const all = buildDrafts(text);
+    const readyRows = all.filter((d) => d.include && d.variantId && d.row.price);
+    const rest = all.filter((d) => !(d.include && d.variantId && d.row.price) && !d.row.used);
+    if (readyRows.length === 0) {
+      setDrafts(all);
+      setMessage({ tone: "stop", text: all.length ? "Hazır satır yok; aşağıdan düzelt." : "Listede fiyat satırı bulunamadı." });
+      return;
+    }
+    const supplierId = supplier === "new" ? null : Number(supplier);
+    start(async () => {
+      const res = await saveSupplierPrices({
+        supplierId,
+        newSupplierName: supplier === "new" ? newName : null,
+        rawText: text,
+        fileName,
+        rows: readyRows.map((d) => ({ variantId: d.variantId!, price: d.row.price!, warranty: d.row.warranty ?? defaultWarranty })),
+        aliases: [],
+      });
+      if (!res.ok) {
+        setDrafts(all);
+        setMessage({ tone: "stop", text: res.error });
+        return;
+      }
+      setSupplier(String(res.data.supplierId));
+      setNewName("");
+      const skippedUsed = all.filter((d) => d.row.used).length;
+      setMessage({
+        tone: "ok",
+        text:
+          `${res.data.count} fiyat yüklendi.` +
+          (rest.length ? ` ${rest.length} satır tanınmadı, aşağıdan düzeltip kaydet.` : "") +
+          (skippedUsed ? ` ${skippedUsed} 2. el satırı atlandı.` : ""),
+      });
+      if (rest.length) setDrafts(rest);
+      else {
+        setDrafts(null);
+        setText("");
+        setFileName(null);
+      }
+    });
   }
 
   async function onFile(file: File) {
@@ -297,14 +343,22 @@ export function PriceListImport({
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => read()}
+            onClick={bulkUpload}
             disabled={!text.trim() || pending}
             className="h-12 rounded-lg bg-ink px-6 font-semibold text-paper disabled:opacity-50"
           >
-            Listeyi oku
+            {pending ? "Yükleniyor…" : "Toplu yükle"}
+          </button>
+          <button
+            type="button"
+            onClick={() => read()}
+            disabled={!text.trim() || pending}
+            className="h-12 rounded-lg border border-ink px-5 font-semibold disabled:opacity-50"
+          >
+            Önce kontrol et
           </button>
           {fileName && <span className="font-mono text-xs text-muted">{fileName}</span>}
-          {message && !drafts && (
+          {message && (
             <p role="status" className={message.tone === "ok" ? "text-sm font-medium text-ok" : "text-sm font-medium text-stop"}>
               {message.text}
             </p>
@@ -408,11 +462,6 @@ export function PriceListImport({
               <span className="text-sm text-muted">
                 Ortalama {formatTL(ready.reduce((s, r) => s + r.price!, 0) / ready.length)}
               </span>
-            )}
-            {message && (
-              <p role="status" className={message.tone === "ok" ? "text-sm font-medium text-ok" : "text-sm font-medium text-stop"}>
-                {message.text}
-              </p>
             )}
           </div>
         </section>

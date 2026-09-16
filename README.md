@@ -40,7 +40,8 @@ siteler atlatılmaya çalışılmaz.
 | Vatan Bilgisayar (sıfır fiyat) | Otomatik, Apple / Samsung / Xiaomi kategori sayfaları |
 | Turkcell Pasaj, Arçelik, Beko (sıfır fiyat) | Otomatik, kategori sayfalarındaki ürün listesi |
 | apple.com/tr, samsung.com/tr (resmi sıfır fiyat) | Kaynaklar sayfasından ürün linki eklenerek |
-| Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt, PTT AVM, Teknosa, Sahibinden | Bot korumalı, otomatik okunamaz. Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusundan elle gir |
+| Sahibinden, Dolap, Letgo, Facebook (2. el ilan) | Bot korumalı, otomatik okunamaz. Al ekranındaki "İlan fiyatlarını yapıştır" kutusuna arama sonucunu yapıştır |
+| Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt, PTT AVM, Teknosa | Bot korumalı, otomatik okunamaz. Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusundan elle gir |
 | Toptancılar | Toptancı sekmesinden liste yükleyerek (metin, Excel, CSV, PDF ya da resim) |
 
 Sat ekranında cihazın satıcı fiyatları en ucuzdan pahalıya sıralanır; otomatik gelen ve elle eklenen fiyatlar aynı listede
@@ -50,6 +51,15 @@ fiyatlarını ve öğrenme düzeltmesini anında yeniler.
 Otomatik okunamayan siteler için iki yol var: Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusu ve **"Fiyat listesi yapıştır"**.
 İkincisinde Epey/Akakçe sayfasındaki satıcı listesini kopyalayıp yapıştırırsın; mağaza adı, fiyat, kargo ve garanti okunup
 listeye eklenir (siteye istek atılmaz, yapıştırdığın metin işlenir).
+
+**2. el alış mantığı:** Sahibinden/Dolap/Letgo'daki ilan fiyatı, cihazı dükkanda satabileceğin fiyat sayılır. Teklif bunun
+altından verilir: en çok %10, ortalama %13, en az %17 kâr payı (Ayarlar'dan değişir). 26.000 TL'lik ilan → 21.500 / 22.500 /
+23.250 TL teklif. Yerel ilan ya da kendi satışın varsa Getmobil'in garantili yenilenmiş fiyatı hesaba katılmaz, sadece yedek
+kalır. Al ekranında her teklifin altında kârın yazar. İlanları yapıştırırken hasarlı, kilitli, başka model ve başka hafızalı
+ilanlar ile uç fiyatlar otomatik atlanır.
+
+Toptancı sekmesinde **"Toplu yükle"** listeyi okuyup tanınan bütün satırları tek dokunuşla kaydeder; sadece tanınmayanlar
+düzeltmen için ekranda kalır. "Önce kontrol et" ise kaydetmeden önizleme gösterir.
 
 Katalog kendi kendine büyür: mağazalarda ve Getmobil site haritasında görülen telefonlar otomatik eklenir, emin olunamayanlar
 Kaynaklar sayfasındaki "Katalogda olmayan telefonlar" listesine düşer ve tek dokunuşla eklenir.

@@ -40,10 +40,10 @@ describe("stats", () => {
 describe("computeReference", () => {
   const base = { now: NOW, settings: DEFAULT_SETTINGS, releaseYear: 2023 };
 
-  it("ilan fiyatından pazarlık payını düşer", () => {
+  it("ilan fiyatı dükkandaki satış fiyatı sayılır", () => {
     const r = computeReference([obs("used_listing", 40_000)], base);
     expect(r.method).toBe("market");
-    expect(r.value).toBeCloseTo(37_200);
+    expect(r.value).toBeCloseTo(40_000);
   });
 
   it("5+ taze gözlemde güven yüksek", () => {
@@ -89,6 +89,12 @@ describe("computeReference", () => {
   it("yenilenmiş fiyat dükkan 2. el fiyatına çevrilir", () => {
     const r = computeReference([obs("refurb_retail", 100_000)], base);
     expect(r.value).toBeCloseTo(82_000);
+  });
+
+  it("yerel ilan varsa yenilenmiş fiyatı hesaba katmaz", () => {
+    const r = computeReference([obs("used_listing", 52_000), obs("refurb_retail", 77_500)], base);
+    expect(r.value).toBeCloseTo(52_000);
+    expect(r.used).toHaveLength(1);
   });
 
   it("kendi işlemlerinden öğrenilen düzeltme uygulanır", () => {
@@ -161,13 +167,19 @@ describe("computeBuyQuote", () => {
   it("kusursuz cihazda marjlara göre 3 fiyat verir", () => {
     const q = computeBuyQuote(input);
     expect(q.resale).toBe(40_000);
-    // en çok %10, orta %17, en az %25 kâr payı
-    expect(q.offers).toEqual({ min: 30_000, mid: 33_000, max: 36_000 });
+    // en çok %10, önerilen %13, en az %17 kâr payı
+    expect(q.offers).toEqual({ min: 33_000, mid: 34_750, max: 36_000 });
+  });
+
+  it("26.000'lik ilan için 22-23 bin bandında alış önerir", () => {
+    const q = computeBuyQuote({ ...input, observations: [obs("used_listing", 26_000)] });
+    expect(q.resale).toBe(26_000);
+    expect(q.offers).toEqual({ min: 21_500, mid: 22_500, max: 23_250 });
   });
 
   it("rakip geri alım teklifi ortalama fiyatı etkiler ama sınırları aşmaz", () => {
     const q = computeBuyQuote({ ...input, observations: [...market, obs("buyback", 32_000, 1, "easycep")] });
-    expect(q.offers!.mid).toBe(32_500); // (33.200 + 32.000) / 2 = 32.600 → aşağı yuvarla
+    expect(q.offers!.mid).toBe(33_250); // (34.800 + 32.000) / 2 = 33.400 → aşağı yuvarla
     expect(q.competitor?.sources).toEqual(["easycep"]);
   });
 

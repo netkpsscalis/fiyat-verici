@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { seriesOf, SERIES_ORDER } from "@/components/ModelPicker";
 import { variantLabel } from "@/lib/format";
 import type { CatalogBrand, CatalogModel } from "@/lib/types";
 
@@ -22,8 +23,11 @@ export function VariantSelect({
     () =>
       catalog.flatMap((b) => {
         const bySeries = new Map<string, CatalogModel[]>();
-        for (const m of b.models) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
-        return [...bySeries.entries()].map(([series, models]) => ({ label: `${b.name} · ${series}`, models }));
+        for (const m of b.models) bySeries.set(seriesOf(m), [...(bySeries.get(seriesOf(m)) ?? []), m]);
+        const rank = (k: string) => (SERIES_ORDER.includes(k) ? SERIES_ORDER.indexOf(k) : SERIES_ORDER.length);
+        return [...bySeries.entries()]
+          .sort((x, y) => rank(x[0]) - rank(y[0]))
+          .map(([series, models]) => ({ label: series === b.name ? b.name : `${b.name} · ${series}`, models }));
       }),
     [catalog],
   );

@@ -44,13 +44,14 @@ export interface PricingSettings {
 }
 
 export const DEFAULT_SETTINGS: PricingSettings = {
-  buyMargins: { max: 10, mid: 17, min: 25 },
+  // İlan 26.000 → en çok 23.400, önerilen 22.600, en az 21.600: satarken kazan, müşteriyi kaçırma
+  buyMargins: { max: 10, mid: 13, min: 17 },
   minProfit: 750,
   sourceAdjust: {
     // Kendi satışın gerçeğin ta kendisi
     own_sell: { factor: 1, weight: 2 },
-    // İlan fiyatında pazarlık payı var
-    used_listing: { factor: 0.93, weight: 1.2 },
+    // Dükkan, Sahibinden/Dolap/Letgo'daki ilan fiyatına satar: ilan fiyatı = dükkan satış fiyatı
+    used_listing: { factor: 1, weight: 1.5 },
     // Yenilenmiş + 12 ay garantili perakende fiyat, dükkandaki 2. el fiyatının üstündedir
     refurb_retail: { factor: 0.82, weight: 0.6 },
   },

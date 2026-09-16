@@ -103,6 +103,18 @@ export function modelNameFromSlug(slug: string, brandId: string): string {
     .trim();
 }
 
+/** Getmobil POCO/Redmi/Xiaomi klasörlerinde adı seri öneki olmadan yazar ("x7-pro", "14t"): katalogdaki adla aynı olsun */
+export function withSeriesPrefix(folder: string, name: string): string {
+  if (folder === "poco" && !/^poco\b/i.test(name)) return `POCO ${name}`;
+  if (folder === "redmi" && !/^redmi\b/i.test(name)) return `Redmi ${name}`;
+  if (folder === "xiaomi") {
+    if (/^MI\b/.test(name)) return name.replace(/^MI\b/, "Mi").replace(/(\d+) T\b/, "$1T");
+    if (/^\d/.test(name)) return `Xiaomi ${name}`;
+    if (/^[XFMC]\d/.test(name)) return `POCO ${name}`;
+  }
+  return name;
+}
+
 /** Site haritasındaki bütün telefon modelleri: kataloğu genişletmek için */
 export function modelsFromSitemap(xml: string): { brandId: string; name: string; key: string }[] {
   const out: { brandId: string; name: string; key: string }[] = [];
@@ -110,7 +122,7 @@ export function modelsFromSitemap(xml: string): { brandId: string; name: string;
     const [folder, modelSlug] = key.split("/");
     const brandId = BRAND_FOLDERS[folder];
     if (!brandId || !modelSlug) continue;
-    const name = modelNameFromSlug(modelSlug, brandId);
+    const name = withSeriesPrefix(folder, modelNameFromSlug(modelSlug, brandId));
     if (name.split(" ").length > 5 || name.length > 40) continue;
     out.push({ brandId, name, key });
   }

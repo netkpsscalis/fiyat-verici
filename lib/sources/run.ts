@@ -4,6 +4,7 @@
  */
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { modelId as buildModelId, variantId as buildVariantId } from "@/data/seed/devices";
+import { guessReleaseYear } from "@/lib/catalogYear";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { filterOutliers, median } from "@/lib/pricing/stats";
@@ -67,7 +68,7 @@ async function ensureModel(brandId: string, name: string): Promise<string> {
       brandId,
       name,
       series: name.split(" ")[0],
-      releaseYear: new Date().getFullYear(),
+      releaseYear: guessReleaseYear(brandId, name) ?? new Date().getFullYear() - 1,
       family: brandId === "apple" ? "iphone" : "android",
       hasBatteryHealth: brandId === "apple",
       sort: 0,

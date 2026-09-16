@@ -92,6 +92,8 @@ export const SOURCE_LABELS: Record<string, string> = {
   sahibinden: "Sahibinden",
   letgo: "Letgo",
   dolap: "Dolap",
+  facebook: "Facebook",
+  diger: "Diğer ilan",
   supplier: "Toptancı",
   own: "Dükkan",
   trendyol: "Trendyol",

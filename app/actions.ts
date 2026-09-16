@@ -172,3 +172,50 @@ export async function addPastedPrices(input: z.input<typeof pastedInput>): Promi
   revalidatePath("/piyasa");
   return { ok: true, data: { count: d.offers.length } };
 }
+
+const listingInput = z.object({
+  variantId: z.string().min(1, "Önce model ve hafıza seç."),
+  platform: z.enum(["sahibinden", "dolap", "letgo", "getmobil", "facebook", "diger"]),
+  prices: z.array(z.number().positive().max(2_000_000)).min(1, "Kaydedilecek ilan yok.").max(200),
+});
+
+/**
+ * Sahibinden/Dolap/Letgo aramasından yapıştırılan ilan fiyatları.
+ * Her platform için günde tek kayıt: ilanların ortancası, ilan sayısı kadar ağırlıkla.
+ */
+export async function addListingPrices(
+  input: z.input<typeof listingInput>,
+): Promise<ActionResult<{ count: number; median: number }>> {
+  const parsed = listingInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Bilgiler eksik." };
+  const d = parsed.data;
+  const sorted = [...d.prices].sort((a, b) => a - b);
+  const mid = sorted.length / 2;
+  const median = Math.round(sorted.length % 2 ? sorted[Math.floor(mid)] : (sorted[mid - 1] + sorted[mid]) / 2);
+  const observedAt = new Date();
+  const startOfDay = new Date(observedAt);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  await db
+    .delete(schema.priceObservations)
+    .where(
+      and(
+        eq(schema.priceObservations.variantId, d.variantId),
+        eq(schema.priceObservations.source, d.platform),
+        eq(schema.priceObservations.kind, "used_listing"),
+        gte(schema.priceObservations.observedAt, startOfDay),
+      ),
+    );
+  await db.insert(schema.priceObservations).values({
+    variantId: d.variantId,
+    kind: "used_listing",
+    source: d.platform,
+    price: median,
+    sampleSize: sorted.length,
+    note: `${sorted.length} ilan · ${sorted[0]}–${sorted[sorted.length - 1]} TL`,
+    observedAt,
+  });
+
+  revalidatePath("/piyasa");
+  return { ok: true, data: { count: sorted.length, median } };
+}
