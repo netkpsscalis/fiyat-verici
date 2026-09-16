@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# yerel veritabanı
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# gizli ayarlar
+.env
+.env.local
+.env.*.local
+
+# scraper çıktıları
+scrapers/.cache/
+playwright-report/
+test-results/

@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Tezgâh: gri-mavi zemin, beyaz kart, lacivert mürekkep, sarı fiyat etiketi */
+:root {
+  --ground: #e9edf2;
+  --paper: #fbfcfe;
+  --ink: #13233a;
+  --muted: #5b6b80;
+  --line: #cbd3de;
+  --tag: #ffc83d;
+  --tag-deep: #f2b100;
+  --tag-ink: #2a1f00;
+  /* Sarı etiket üstünde okunaklı uyarı rengi; etiket her temada sarı olduğu için sabit */
+  --tag-alert: #9e0019;
+  --stop: #d7263d;
+  --ok: #1f8a5b;
+  --focus: #2f6fdd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0d1522;
+    --paper: #16223a;
+    --ink: #e6ecf5;
+    --muted: #93a3ba;
+    --line: #2a3a55;
+    --stop: #ff5a6e;
+    --ok: #3cc98a;
+    --focus: #7aa7ff;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0d1522;
+  --paper: #16223a;
+  --ink: #e6ecf5;
+  --muted: #93a3ba;
+  --line: #2a3a55;
+  --stop: #ff5a6e;
+  --ok: #3cc98a;
+  --focus: #7aa7ff;
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-tag: var(--tag);
+  --color-tag-deep: var(--tag-deep);
+  --color-tag-ink: var(--tag-ink);
+  --color-tag-alert: var(--tag-alert);
+  --color-stop: var(--stop);
+  --color-ok: var(--ok);
+  --font-display: var(--font-archivo), "Arial Narrow", system-ui, sans-serif;
+  --font-sans: var(--font-onest), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Rakamlar hep aynı genişlikte: fiyatlar alt alta hizalı dursun */
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-stretch: 78%;
+}
+
+/* Sarı fiyat etiketi: sol üst köşesi kesik, delikli */
+.price-tag {
+  position: relative;
+  background: var(--tag);
+  color: var(--tag-ink);
+  clip-path: polygon(22px 0, 100% 0, 100% 100%, 0 100%, 0 22px);
+}
+.price-tag::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--ground);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tick {
+    animation: tick 260ms ease-out;
+  }
+  @keyframes tick {
+    from {
+      transform: translateY(4px);
+      opacity: 0.4;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}

@@ -1,0 +1,366 @@
+/**
+ * Fiyat motoru. Veritabanına dokunmaz; gözlemleri ve seçimleri alır, fiyatları hesaplar.
+ * Hem sunucuda hem tarayıcıda (canlı fiyat etiketi için) çalışır.
+ */
+import type { ObservationKind, WarrantyType } from "@/lib/db/schema";
+import {
+  adjustmentFor,
+  factorLabel,
+  factorsFor,
+  type Family,
+  type Overrides,
+  type Selection,
+} from "./conditions";
+import type { PricingSettings } from "./settings";
+import { ageInDays, filterOutliers, freshnessWeight, median, roundPrice, weightedMedian } from "./stats";
+
+export interface Observation {
+  kind: ObservationKind;
+  source: string;
+  price: number;
+  observedAt: Date | number;
+  warranty?: WarrantyType | null;
+  condition?: string | null;
+  url?: string | null;
+  /** Kaç ilanın ortası (toplu kaynaklar). Yoksa 1. */
+  sampleSize?: number | null;
+}
+
+/** Toplu bir kayıt en fazla bu kadar tekil gözlem yerine geçer: tek kaynak tek başına "yüksek güven" veremez */
+const MAX_SAMPLE_WEIGHT = 3;
+const sampleWeight = (o: Observation) => Math.min(Math.max(o.sampleSize ?? 1, 1), MAX_SAMPLE_WEIGHT);
+const sampleTotal = (list: Observation[]) => list.reduce((n, o) => n + Math.max(o.sampleSize ?? 1, 1), 0);
+
+export interface UsedObservation extends Observation {
+  /** Pazarlık payı vb. düzeltmelerden sonra hesaba giren değer */
+  adjusted: number;
+  ageDays: number;
+}
+
+export type Confidence = "yuksek" | "orta" | "dusuk" | "yok";
+
+export interface Reference {
+  /** Kusursuz durumdaki cihazın dükkanda satılabileceği tahmini fiyat */
+  value: number | null;
+  method: "market" | "buyback" | "new_depreciation" | "none";
+  used: UsedObservation[];
+  /** Hesaba giren toplam ilan/fiyat sayısı (toplu kayıtlar açılmış haliyle) */
+  sampleCount: number;
+  newestAgeDays: number | null;
+  confidence: Confidence;
+}
+
+const MARKET_KINDS: Partial<Record<ObservationKind, number>> = {
+  own_sell: 1.5,
+  used_listing: 1,
+  refurb_retail: 1,
+};
+
+function inWindow(obs: Observation[], now: number, days: number) {
+  return obs.filter((o) => ageInDays(o.observedAt, now) <= days);
+}
+
+/** Pencere içinde veri yoksa 90 güne kadar geriye bakar. */
+function recent(obs: Observation[], now: number, windowDays: number) {
+  const inWin = inWindow(obs, now, windowDays);
+  return inWin.length > 0 ? inWin : inWindow(obs, now, 90);
+}
+
+function adjustForKind(o: Observation, s: PricingSettings): number {
+  if (o.kind === "used_listing") return o.price * (1 - s.listingDiscount / 100);
+  if (o.kind === "refurb_retail") return o.price * s.refurbFactor;
+  return o.price;
+}
+
+function toUsed(o: Observation, adjusted: number, now: number): UsedObservation {
+  return { ...o, adjusted, ageDays: ageInDays(o.observedAt, now) };
+}
+
+export function computeReference(
+  observations: Observation[],
+  opts: { now: Date | number; settings: PricingSettings; releaseYear: number },
+): Reference {
+  const now = Number(opts.now);
+  const s = opts.settings;
+
+  // 1) 2. el piyasa: kendi satışların, ilanlar, yenilenmiş satış fiyatları
+  const market = recent(
+    observations.filter((o) => o.kind in MARKET_KINDS),
+    now,
+    s.windowDays,
+  );
+  if (market.length > 0) {
+    const used = filterOutliers(
+      market.map((o) => toUsed(o, adjustForKind(o, s), now)),
+      (u) => u.adjusted,
+    );
+    const value = weightedMedian(
+      used.map((u) => ({ value: u.adjusted, weight: MARKET_KINDS[u.kind]! * freshnessWeight(u.ageDays) * sampleWeight(u) })),
+    );
+    const newest = Math.min(...used.map((u) => u.ageDays));
+    const effective = used.reduce((n, u) => n + sampleWeight(u), 0);
+    let confidence: Confidence = effective >= 5 ? "yuksek" : effective >= 2 ? "orta" : "dusuk";
+    if (newest > s.freshDays * 2) confidence = "dusuk";
+    else if (newest > s.freshDays && confidence === "yuksek") confidence = "orta";
+    return { value, method: "market", used, sampleCount: sampleTotal(used), newestAgeDays: newest, confidence };
+  }
+
+  // 2) Sadece rakip geri alım teklifleri varsa: geri alım fiyatından satış değerine geri git
+  const buyback = recent(
+    observations.filter((o) => o.kind === "buyback"),
+    now,
+    s.windowDays,
+  );
+  if (buyback.length > 0) {
+    const used = buyback.map((o) => toUsed(o, o.price / s.buybackRatio, now));
+    const value = median(used.map((u) => u.adjusted));
+    return {
+      value,
+      method: "buyback",
+      used,
+      sampleCount: sampleTotal(used),
+      newestAgeDays: Math.min(...used.map((u) => u.ageDays)),
+      confidence: "dusuk",
+    };
+  }
+
+  // 3) Son çare: sıfır fiyattan yaşa göre değer kaybı
+  const fresh = recent(
+    observations.filter((o) => o.kind === "new_retail" || o.kind === "new_wholesale"),
+    now,
+    s.windowDays,
+  );
+  if (fresh.length > 0) {
+    const age = Math.max(0, new Date(now).getFullYear() - opts.releaseYear);
+    const factor = s.depreciation[Math.min(age, s.depreciation.length - 1)];
+    const used = fresh.map((o) => toUsed(o, o.price * factor, now));
+    const value = median(used.map((u) => u.adjusted));
+    return {
+      value,
+      method: "new_depreciation",
+      used,
+      sampleCount: sampleTotal(used),
+      newestAgeDays: Math.min(...used.map((u) => u.ageDays)),
+      confidence: "dusuk",
+    };
+  }
+
+  return { value: null, method: "none", used: [], sampleCount: 0, newestAgeDays: null, confidence: "yok" };
+}
+
+export interface AppliedAdjustment {
+  factorId: string;
+  factorLabel: string;
+  optionLabel: string;
+  mode: "pct" | "fixed";
+  value: number;
+}
+
+export interface Adjustments {
+  /** Yüzde kesintilerin çarpımı (1 = kesinti yok) */
+  multiplier: number;
+  /** Sabit TL kesintilerin toplamı */
+  fixedTotal: number;
+  applied: AppliedAdjustment[];
+  /** Cihazın alınmasını engelleyen durumlar */
+  blocked: string[];
+  /** Cevaplanmamış sorular */
+  missing: string[];
+}
+
+export function computeAdjustments(family: Family, selection: Selection, overrides: Overrides = {}): Adjustments {
+  const out: Adjustments = { multiplier: 1, fixedTotal: 0, applied: [], blocked: [], missing: [] };
+  for (const f of factorsFor(family)) {
+    const raw = selection[f.id];
+    const chosen = f.multi ? (Array.isArray(raw) ? raw : []) : typeof raw === "string" ? [raw] : [];
+    if (!f.multi && chosen.length === 0) {
+      out.missing.push(factorLabel(f, family));
+      continue;
+    }
+    for (const optId of chosen) {
+      const opt = f.options.find((o) => o.id === optId);
+      if (!opt) continue;
+      if (opt.blocking) out.blocked.push(opt.label);
+      const adj = adjustmentFor(f.id, opt, overrides);
+      if (adj.value === 0) continue;
+      if (adj.mode === "pct") out.multiplier *= 1 - adj.value / 100;
+      else out.fixedTotal += adj.value;
+      out.applied.push({
+        factorId: f.id,
+        factorLabel: factorLabel(f, family),
+        optionLabel: opt.label,
+        mode: adj.mode,
+        value: adj.value,
+      });
+    }
+  }
+  return out;
+}
+
+export interface PriceTriple {
+  min: number;
+  mid: number;
+  max: number;
+}
+
+export interface BuyQuote {
+  reference: Reference;
+  adjustments: Adjustments;
+  /** Bu durumdaki cihazın tahmini satış değeri */
+  resale: number | null;
+  offers: PriceTriple | null;
+  competitor: { median: number; adjusted: number; count: number; sources: string[] } | null;
+  warnings: string[];
+}
+
+export function computeBuyQuote(input: {
+  observations: Observation[];
+  family: Family;
+  releaseYear: number;
+  selection: Selection;
+  settings: PricingSettings;
+  overrides?: Overrides;
+  now?: Date | number;
+}): BuyQuote {
+  const now = Number(input.now ?? Date.now());
+  const s = input.settings;
+  const reference = computeReference(input.observations, { now, settings: s, releaseYear: input.releaseYear });
+  const adjustments = computeAdjustments(input.family, input.selection, input.overrides);
+  const warnings: string[] = [];
+
+  const buybacks = recent(
+    input.observations.filter((o) => o.kind === "buyback"),
+    now,
+    s.windowDays,
+  );
+  const bbMedian = median(buybacks.map((o) => o.price));
+  const competitor =
+    bbMedian === null
+      ? null
+      : {
+          median: bbMedian,
+          adjusted: Math.max(0, bbMedian * adjustments.multiplier - adjustments.fixedTotal),
+          count: buybacks.length,
+          sources: [...new Set(buybacks.map((o) => o.source))],
+        };
+
+  if (adjustments.missing.length) warnings.push(`Cevaplanmadı: ${adjustments.missing.join(", ")}`);
+  if (reference.confidence === "dusuk") warnings.push("Piyasa verisi az veya eski. Fiyatı dikkatli kullan.");
+  if (reference.method === "new_depreciation") warnings.push("2. el veri yok; sıfır fiyattan yaşa göre tahmin edildi.");
+  if (reference.method === "buyback") warnings.push("2. el satış verisi yok; rakip geri alım tekliflerinden tahmin edildi.");
+
+  if (adjustments.blocked.length) {
+    return { reference, adjustments, resale: null, offers: null, competitor, warnings: [`ALINMAZ: ${adjustments.blocked.join(", ")}`, ...warnings] };
+  }
+  if (reference.value === null) {
+    return { reference, adjustments, resale: null, offers: null, competitor, warnings: ["Bu model için hiç fiyat verisi yok. Piyasa sayfasından fiyat ekle.", ...warnings] };
+  }
+
+  const resale = Math.max(0, reference.value * adjustments.multiplier - adjustments.fixedTotal);
+  const m = s.buyMargins;
+  const max = Math.max(0, Math.min(resale * (1 - m.max / 100), resale - s.minProfit));
+  const min = Math.min(max, resale * (1 - m.min / 100));
+  let mid = resale * (1 - m.mid / 100);
+  if (competitor) mid = (mid + competitor.adjusted) / 2;
+  mid = Math.min(max, Math.max(min, mid));
+
+  if (resale - max < s.minProfit) warnings.push("Kâr payı en az kâr tutarının altında kalıyor.");
+
+  return {
+    reference,
+    adjustments,
+    resale: roundPrice(resale),
+    offers: { min: roundPrice(min, "down"), mid: roundPrice(mid, "down"), max: roundPrice(max, "down") },
+    competitor,
+    warnings,
+  };
+}
+
+export interface SaleQuote {
+  cost: { value: number; min: number | null; median: number | null; count: number; estimated: boolean; sources: string[] } | null;
+  retail: { min: number; median: number; count: number; sources: string[] } | null;
+  prices: PriceTriple | null;
+  used: UsedObservation[];
+  warnings: string[];
+}
+
+/** Sıfır cihaz satış fiyatı: toptan maliyet + kâr, piyasa perakende fiyatıyla sınırlı. */
+export function computeSaleQuote(input: {
+  observations: Observation[];
+  warranty?: WarrantyType | null;
+  settings: PricingSettings;
+  now?: Date | number;
+}): SaleQuote {
+  const now = Number(input.now ?? Date.now());
+  const s = input.settings;
+  const warnings: string[] = [];
+  const matchesWarranty = (o: Observation) => !input.warranty || !o.warranty || o.warranty === input.warranty;
+
+  const wholesale = recent(
+    input.observations.filter((o) => o.kind === "new_wholesale" && matchesWarranty(o)),
+    now,
+    14,
+  );
+  const retailObs = filterOutliers(
+    recent(
+      input.observations.filter((o) => o.kind === "new_retail" && matchesWarranty(o)),
+      now,
+      s.windowDays,
+    ),
+    (o) => o.price,
+  );
+
+  const retail =
+    retailObs.length > 0
+      ? {
+          min: Math.min(...retailObs.map((o) => o.price)),
+          median: median(retailObs.map((o) => o.price))!,
+          count: retailObs.length,
+          sources: [...new Set(retailObs.map((o) => o.source))],
+        }
+      : null;
+
+  let cost: SaleQuote["cost"] = null;
+  if (wholesale.length > 0) {
+    const prices = wholesale.map((o) => o.price);
+    cost = {
+      value: Math.min(...prices),
+      min: Math.min(...prices),
+      median: median(prices),
+      count: wholesale.length,
+      estimated: false,
+      sources: [...new Set(wholesale.map((o) => o.source))],
+    };
+  } else if (retail) {
+    cost = {
+      value: retail.min * s.newSale.wholesaleFromRetail,
+      min: null,
+      median: null,
+      count: 0,
+      estimated: true,
+      sources: [],
+    };
+    warnings.push("Toptancı fiyatı yok; maliyet piyasadaki en düşük fiyattan tahmin edildi.");
+  }
+
+  const used = [...wholesale, ...retailObs].map((o) => toUsed(o, o.price, now));
+
+  if (!cost) {
+    return { cost, retail, prices: null, used, warnings: ["Bu model için sıfır fiyat verisi yok.", ...warnings] };
+  }
+
+  const min = cost.value + s.newSale.minProfit;
+  const target = cost.value * (1 + s.newSale.margin / 100);
+  const mid = Math.max(min, retail ? Math.min(target, retail.median) : target);
+  const max = Math.max(mid, retail ? retail.median : cost.value * (1 + (2 * s.newSale.margin) / 100));
+
+  if (retail && min > retail.median) warnings.push("En az kârla bile piyasa ortalamasının üstünde kalıyorsun.");
+
+  return {
+    cost,
+    retail,
+    prices: { min: roundPrice(min, "up"), mid: roundPrice(mid, "up"), max: roundPrice(max, "up") },
+    used,
+    warnings,
+  };
+}
