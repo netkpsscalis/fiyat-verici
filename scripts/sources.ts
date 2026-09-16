@@ -21,5 +21,16 @@ const model = arg("model");
 const started = Date.now();
 const results = await runAll({ only, modelIds: model ? model.split(",") : undefined, log: (m) => console.log(m) });
 for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.source}: ${r.message}`);
+
+// Kendi alış/satışlarına göre yerel piyasa düzeltmesi her gün yenilenir
+if (!only && !model) {
+  const { recalculateCalibration } = await import("../lib/calibration");
+  const c = await recalculateCalibration();
+  console.log(
+    c.samples >= 3
+      ? `✓ düzeltme: ×${c.factor} (${c.fromBuys} alış, ${c.fromSells} satış)`
+      : `· düzeltme: yeterli işlem yok (${c.samples})`,
+  );
+}
 console.log(`Bitti (${Math.round((Date.now() - started) / 1000)} sn).`);
 process.exit(results.some((r) => !r.ok) ? 1 : 0);
