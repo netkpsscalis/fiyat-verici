@@ -2,17 +2,19 @@
  * Kaynak çalıştırıcı: Getmobil ve takip edilen linkleri okur, sonuçları piyasa fiyatı olarak yazar.
  * Aynı gün tekrar çalışırsa o günün kaydını günceller (çift kayıt olmaz).
  */
-import { and, eq, gte, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { filterOutliers, median } from "@/lib/pricing/stats";
 import { fetchGetmobil } from "./getmobil";
+import { fetchTurkcell } from "./turkcell";
 import { fetchVatan } from "./vatan";
 import { politeFetch, sourceNameFromUrl } from "./http";
 import { extractOffers } from "./jsonld";
 import { pickTrackedPrice } from "./pick";
+import type { UnmatchedProduct } from "./unmatched";
 
-export const SOURCES = ["getmobil", "vatan", "tracked"] as const;
+export const SOURCES = ["getmobil", "vatan", "turkcell", "tracked"] as const;
 export type SourceId = (typeof SOURCES)[number];
 
 export interface RunSummary {
@@ -50,6 +52,21 @@ async function writeDaily(row: {
       ),
     );
   await db.insert(schema.priceObservations).values({ ...row, warranty: row.warranty ?? null, observedAt: new Date() });
+}
+
+/** Katalogda olmayan telefonları biriktirir; kullanıcı Kaynaklar sayfasından ekler. */
+async function recordUnmatched(source: string, items: UnmatchedProduct[]) {
+  const lastSeenAt = new Date();
+  for (const u of items.slice(0, 60)) {
+    const name = u.name.slice(0, 140);
+    await db
+      .insert(schema.unmatchedProducts)
+      .values({ source, name, price: u.price, brandId: u.brandId, ramGb: u.ramGb, storageGb: u.storageGb, lastSeenAt })
+      .onConflictDoUpdate({
+        target: [schema.unmatchedProducts.source, schema.unmatchedProducts.name],
+        set: { price: u.price, lastSeenAt, seenCount: sql`${schema.unmatchedProducts.seenCount} + 1` },
+      });
+  }
 }
 
 async function setStatus(source: string, ok: boolean, count: number, error: string | null) {
@@ -98,7 +115,8 @@ export async function runVatan(opts: { log?: (m: string) => void } = {}): Promis
   const log = opts.log ?? (() => {});
   try {
     const catalog = await getCatalog();
-    const results = await fetchVatan(catalog.flatMap((b) => b.models), log);
+    const { results, unmatched } = await fetchVatan(catalog.flatMap((b) => b.models), log);
+    await recordUnmatched("vatan", unmatched);
     for (const r of results) {
       await writeDaily({
         variantId: r.variantId,
@@ -117,6 +135,34 @@ export async function runVatan(opts: { log?: (m: string) => void } = {}): Promis
     const message = (e as Error).message;
     await setStatus("vatan", false, 0, message);
     return { source: "vatan", ok: false, count: 0, message };
+  }
+}
+
+/** Turkcell Pasaj: kategori sayfalarındaki sıfır cihaz fiyatları. */
+export async function runTurkcell(opts: { log?: (m: string) => void } = {}): Promise<RunSummary> {
+  const log = opts.log ?? (() => {});
+  try {
+    const catalog = await getCatalog();
+    const { results, unmatched } = await fetchTurkcell(catalog.flatMap((b) => b.models), log);
+    await recordUnmatched("turkcell", unmatched);
+    for (const r of results) {
+      await writeDaily({
+        variantId: r.variantId,
+        kind: "new_retail",
+        source: "turkcell",
+        price: r.price,
+        url: r.url,
+        note: r.name,
+        warranty: "resmi",
+      });
+    }
+    const message = `${results.length} cihazın sıfır fiyatı güncellendi`;
+    await setStatus("turkcell", results.length > 0, results.length, results.length ? null : "Hiç ürün eşleşmedi.");
+    return { source: "turkcell", ok: results.length > 0, count: results.length, message };
+  } catch (e) {
+    const message = (e as Error).message;
+    await setStatus("turkcell", false, 0, message);
+    return { source: "turkcell", ok: false, count: 0, message };
   }
 }
 
@@ -170,6 +216,7 @@ export async function runAll(opts: { only?: SourceId; modelIds?: string[]; log?:
     opts.log?.(`▶ ${s}`);
     if (s === "getmobil") out.push(await runGetmobil(opts));
     else if (s === "vatan") out.push(await runVatan({ log: opts.log }));
+    else if (s === "turkcell") out.push(await runTurkcell({ log: opts.log }));
     else out.push(await runTracked({ log: opts.log }));
   }
   return out;

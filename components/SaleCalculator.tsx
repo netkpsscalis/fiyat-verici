@@ -50,10 +50,8 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
   const rows = market?.variantId === variantId ? market.rows : null;
   const quote = useMemo(() => (rows ? computeSaleQuote({ observations: rows, warranty, settings }) : null), [rows, warranty, settings]);
   const variant = model?.variants.find((v) => v.id === variantId);
-  // Satıcı listesi: garanti seçimine uyan sıfır fiyatlar
-  const sellerRows = (rows ?? []).filter(
-    (o) => o.kind === "new_retail" && (!warranty || !o.warranty || o.warranty === warranty),
-  );
+  // Satıcı listesi: bütün sıfır fiyatlar, en ucuzdan pahalıya (garanti tipi satırda yazar)
+  const sellerRows = (rows ?? []).filter((o) => o.kind === "new_retail");
 
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-10">
@@ -100,7 +98,9 @@ export function SaleCalculator({ catalog, settings }: { catalog: CatalogBrand[];
 
             <section className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
-                <h2 className="eyebrow text-muted">Satıcı fiyatları{sellerRows.length ? ` · ${sellerRows.length} mağaza` : ""}</h2>
+                <h2 className="eyebrow text-muted">
+                  Satıcı fiyatları · en ucuzdan pahalıya{sellerRows.length ? ` · ${sellerRows.length} mağaza` : ""}
+                </h2>
                 {model && <RefreshSourcesButton modelId={model.id} variantId={variantId} onDone={reloadMarket} />}
               </div>
               {sellerRows.length > 0 ? (

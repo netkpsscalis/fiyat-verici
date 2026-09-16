@@ -11,7 +11,7 @@ import {
   type Overrides,
   type Selection,
 } from "./conditions";
-import type { PricingSettings } from "./settings";
+import { MARKET_KINDS, type PricingSettings } from "./settings";
 import { ageInDays, filterOutliers, freshnessWeight, median, roundPrice, weightedMedian } from "./stats";
 
 export interface Observation {
@@ -46,15 +46,11 @@ export interface Reference {
   used: UsedObservation[];
   /** Hesaba giren toplam ilan/fiyat sayısı (toplu kayıtlar açılmış haliyle) */
   sampleCount: number;
+  /** Kendi satışlarına göre uygulanan düzeltme (1 = düzeltme yok) */
+  calibration: number;
   newestAgeDays: number | null;
   confidence: Confidence;
 }
-
-const MARKET_KINDS: Partial<Record<ObservationKind, number>> = {
-  own_sell: 1.5,
-  used_listing: 1,
-  refurb_retail: 1,
-};
 
 function inWindow(obs: Observation[], now: number, days: number) {
   return obs.filter((o) => ageInDays(o.observedAt, now) <= days);
@@ -66,10 +62,14 @@ function recent(obs: Observation[], now: number, windowDays: number) {
   return inWin.length > 0 ? inWin : inWindow(obs, now, 90);
 }
 
+/** Kaynağın fiyatını dükkandaki 2. el satış fiyatına çevirir (ilan pazarlık payı, yenilenmiş farkı...) */
 function adjustForKind(o: Observation, s: PricingSettings): number {
-  if (o.kind === "used_listing") return o.price * (1 - s.listingDiscount / 100);
-  if (o.kind === "refurb_retail") return o.price * s.refurbFactor;
-  return o.price;
+  const adjust = s.sourceAdjust[o.kind as keyof PricingSettings["sourceAdjust"]];
+  return o.price * (adjust?.factor ?? 1);
+}
+
+function kindWeight(o: Observation, s: PricingSettings): number {
+  return s.sourceAdjust[o.kind as keyof PricingSettings["sourceAdjust"]]?.weight ?? 1;
 }
 
 function toUsed(o: Observation, adjusted: number, now: number): UsedObservation {
@@ -84,8 +84,9 @@ export function computeReference(
   const s = opts.settings;
 
   // 1) 2. el piyasa: kendi satışların, ilanlar, yenilenmiş satış fiyatları
+  const calibration = s.calibration.samples >= 3 ? s.calibration.factor : 1;
   const market = recent(
-    observations.filter((o) => o.kind in MARKET_KINDS),
+    observations.filter((o) => (MARKET_KINDS as string[]).includes(o.kind)),
     now,
     s.windowDays,
   );
@@ -94,15 +95,16 @@ export function computeReference(
       market.map((o) => toUsed(o, adjustForKind(o, s), now)),
       (u) => u.adjusted,
     );
-    const value = weightedMedian(
-      used.map((u) => ({ value: u.adjusted, weight: MARKET_KINDS[u.kind]! * freshnessWeight(u.ageDays) * sampleWeight(u) })),
+    const raw = weightedMedian(
+      used.map((u) => ({ value: u.adjusted, weight: kindWeight(u, s) * freshnessWeight(u.ageDays) * sampleWeight(u) })),
     );
+    const value = raw === null ? null : raw * calibration;
     const newest = Math.min(...used.map((u) => u.ageDays));
     const effective = used.reduce((n, u) => n + sampleWeight(u), 0);
     let confidence: Confidence = effective >= 5 ? "yuksek" : effective >= 2 ? "orta" : "dusuk";
     if (newest > s.freshDays * 2) confidence = "dusuk";
     else if (newest > s.freshDays && confidence === "yuksek") confidence = "orta";
-    return { value, method: "market", used, sampleCount: sampleTotal(used), newestAgeDays: newest, confidence };
+    return { value, method: "market", used, sampleCount: sampleTotal(used), calibration, newestAgeDays: newest, confidence };
   }
 
   // 2) Sadece rakip geri alım teklifleri varsa: geri alım fiyatından satış değerine geri git
@@ -117,6 +119,7 @@ export function computeReference(
     return {
       value,
       method: "buyback",
+      calibration: 1,
       used,
       sampleCount: sampleTotal(used),
       newestAgeDays: Math.min(...used.map((u) => u.ageDays)),
@@ -138,6 +141,7 @@ export function computeReference(
     return {
       value,
       method: "new_depreciation",
+      calibration: 1,
       used,
       sampleCount: sampleTotal(used),
       newestAgeDays: Math.min(...used.map((u) => u.ageDays)),
@@ -145,7 +149,7 @@ export function computeReference(
     };
   }
 
-  return { value: null, method: "none", used: [], sampleCount: 0, newestAgeDays: null, confidence: "yok" };
+  return { value: null, method: "none", used: [], sampleCount: 0, calibration: 1, newestAgeDays: null, confidence: "yok" };
 }
 
 export interface AppliedAdjustment {

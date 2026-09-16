@@ -100,6 +100,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   amazon: "Amazon",
   tracked: "Takip linkleri",
   vatan: "Vatan",
+  turkcell: "Turkcell Pasaj",
   mediamarkt: "Media Markt",
   pttavm: "PTT AVM",
   teknosa: "Teknosa",

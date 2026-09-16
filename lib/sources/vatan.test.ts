@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogModel } from "@/lib/types";
+import { suggestModelName } from "./unmatched";
 import { matchVatanProducts, parseVatanProducts, storageFromName } from "./vatan";
 
 const html = `
@@ -51,7 +52,8 @@ describe("vatan", () => {
   });
 
   it("katalogla eşleştirir, aynı cihazın en ucuz rengini alır, katalogda olmayanı atlar", () => {
-    const matched = matchVatanProducts(parseVatanProducts(html), [iphone16], "apple");
+    const { matched, unmatched } = matchVatanProducts(parseVatanProducts(html), [iphone16], "apple");
+    expect(unmatched.map((u) => u.name)).toEqual(["Samsung Galaxy S25 FE 5G 8/256 Gb Akıllı Telefon Gece Siyahı"]);
     expect(matched).toEqual([
       {
         variantId: "apple-iphone-16-128",
@@ -61,5 +63,15 @@ describe("vatan", () => {
         warranty: "resmi",
       },
     ]);
+  });
+});
+
+describe("suggestModelName", () => {
+  it("ürün adından kataloğa uygun model adı çıkarır", () => {
+    expect(suggestModelName("Samsung Galaxy A27 5G 8/256 GB Akıllı Telefon Siyah", "samsung")).toBe("Galaxy A27");
+    expect(suggestModelName("Xiaomi 17T Pro 12/512GB Akıllı Telefon Koyu Mavi", "xiaomi")).toBe("Xiaomi 17T Pro");
+    expect(suggestModelName("Xiaomi Redmi 15C 8+256GB Siyah Akıllı Telefon", "xiaomi")).toBe("Redmi 15C");
+    expect(suggestModelName("iPhone 17 Pro Max 256 GB Akıllı Telefon Kozmik Turuncu", "apple")).toBe("iPhone 17 Pro Max");
+    expect(suggestModelName("Samsung Galaxy Z Fold8 Ultra 12GB 256GB", "samsung")).toBe("Galaxy Z Fold8 Ultra");
   });
 });

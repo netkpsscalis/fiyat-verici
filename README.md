@@ -19,11 +19,15 @@ Telefona uygulama gibi kurulur (PWA).
 ## Fiyat nasıl hesaplanır?
 
 1. **Piyasa değeri:** Son 30 günün 2. el fiyatları (kendi satışların, ilanlar, yenilenmiş cihaz fiyatları) tazeliğe göre
-   ağırlıklandırılır, uç değerler atılır, ortanca alınır. İlan fiyatlarından pazarlık payı düşülür.
+   ağırlıklandırılır, uç değerler atılır, ortanca alınır. Her kaynak önce dükkan fiyatına çevrilir: ilan fiyatından pazarlık
+   payı düşülür (%93), yenilenmiş + garantili perakende fiyatı dükkan 2. el seviyesine indirilir (%82). Oranlar Ayarlar'dan
+   değiştirilir.
 2. **Durum kesintileri:** Cihazın durumuna göre yüzde ya da TL kesintiler uygulanır (Ayarlar'dan değiştirilebilir).
 3. **Teklifler:** Tahmini satış fiyatından kâr payları düşülür. Rakip alış teklifi varsa ortalama teklif onunla harmanlanır.
    Her cihazda en az kâr tutarı korunur.
 4. **Güven:** Veri azsa ya da eskiyse uygulama uyarır.
+5. **Kendi işlemlerinden öğrenme:** Uygulamanın önerdiği fiyatlarla senin gerçekten aldığın/sattığın fiyatlar karşılaştırılır;
+   sürekli yüksek ya da düşük öneriyorsa katsayısını kendi düzeltir (en az 3 işlem gerekir).
 
 ## Otomatik kaynaklar
 
@@ -34,12 +38,17 @@ siteler atlatılmaya çalışılmaz.
 |---|---|
 | Getmobil (yenilenmiş satış fiyatları) | Otomatik, katalogdaki modellerin çoğu |
 | Vatan Bilgisayar (sıfır fiyat) | Otomatik, Apple / Samsung / Xiaomi kategori sayfaları |
+| Turkcell Pasaj (sıfır fiyat) | Otomatik, kategori sayfalarındaki ürün listesi |
 | apple.com/tr, samsung.com/tr (resmi sıfır fiyat) | Kaynaklar sayfasından ürün linki eklenerek |
 | Epey, Akakçe, Cimri, Hepsiburada, Trendyol, n11, Media Markt, PTT AVM, Teknosa, Sahibinden | Bot korumalı, otomatik okunamaz. Sat ekranındaki "Gördüğün bir fiyatı ekle" kutusundan elle gir |
 | Toptancılar | Toptancı sekmesinden liste yükleyerek (metin, Excel, CSV, PDF ya da resim) |
 
 Sat ekranında cihazın satıcı fiyatları en ucuzdan pahalıya sıralanır; otomatik gelen ve elle eklenen fiyatlar aynı listede
-görünür. "Kaynakları güncelle" düğmesi o cihazın otomatik kaynaklarını anında okur.
+görünür. "Kaynakları güncelle" o cihazın kaynaklarını, Kaynaklar sayfasındaki "Fiyatları şimdi güncelle" ise bütün mağaza
+fiyatlarını ve öğrenme düzeltmesini anında yeniler.
+
+Mağazalarda görülüp katalogda olmayan telefonlar Kaynaklar sayfasında listelenir; "Kataloğa ekle" dediğinde model kataloğa
+girer ve bir sonraki güncellemede fiyatı gelir.
 
 ## Bilgisayarda çalıştırma
 

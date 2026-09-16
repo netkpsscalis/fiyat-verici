@@ -195,6 +195,23 @@ export const sourcePages = sqliteTable(
   (t) => [uniqueIndex("source_pages_variant_source_idx").on(t.variantId, t.source)],
 );
 
+/** Kaynaklarda görülen ama katalogda olmayan telefonlar; kullanıcı onaylayınca kataloğa eklenir. */
+export const unmatchedProducts = sqliteTable(
+  "unmatched_products",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    source: text("source").notNull(),
+    name: text("name").notNull(),
+    price: real("price"),
+    brandId: text("brand_id"),
+    ramGb: integer("ram_gb"),
+    storageGb: integer("storage_gb"),
+    seenCount: integer("seen_count").notNull().default(1),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => [uniqueIndex("unmatched_source_name_idx").on(t.source, t.name)],
+);
+
 export const sourceStatus = sqliteTable("source_status", {
   source: text("source").primaryKey(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),

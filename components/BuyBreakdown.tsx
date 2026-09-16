@@ -28,6 +28,12 @@ export function BuyBreakdown({ quote, settings }: { quote: BuyQuote; settings: P
 
       <Row label="Kusursuz cihazın piyasa değeri" value={formatTL(ref.value)}>
         {METHOD_LABELS[ref.method]} · {CONFIDENCE_LABELS[ref.confidence]}
+        {ref.calibration !== 1 && (
+          <>
+            {" · "}
+            <strong className="text-ink">kendi işlemlerine göre ×{ref.calibration}</strong>
+          </>
+        )}
       </Row>
       <ObservationList items={ref.used} />
 

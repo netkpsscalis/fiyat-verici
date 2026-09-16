@@ -86,6 +86,24 @@ describe("computeReference", () => {
     expect(r.value).toBeCloseTo(31_800);
   });
 
+  it("yenilenmiş fiyat dükkan 2. el fiyatına çevrilir", () => {
+    const r = computeReference([obs("refurb_retail", 100_000)], base);
+    expect(r.value).toBeCloseTo(82_000);
+  });
+
+  it("kendi işlemlerinden öğrenilen düzeltme uygulanır", () => {
+    const settings = { ...DEFAULT_SETTINGS, calibration: { factor: 0.9, samples: 6, updatedAt: null } };
+    const r = computeReference([obs("own_sell", 50_000)], { ...base, settings });
+    expect(r.value).toBeCloseTo(45_000);
+    expect(r.calibration).toBe(0.9);
+  });
+
+  it("3'ten az örnekte düzeltme uygulanmaz", () => {
+    const settings = { ...DEFAULT_SETTINGS, calibration: { factor: 0.5, samples: 2, updatedAt: null } };
+    const r = computeReference([obs("own_sell", 50_000)], { ...base, settings });
+    expect(r.value).toBeCloseTo(50_000);
+  });
+
   it("veri yoksa değer null", () => {
     expect(computeReference([], base).value).toBeNull();
   });

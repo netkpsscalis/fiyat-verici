@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckTrackedButton, DeleteTrackedButton, SourceToggle, TrackedUrlForm } from "@/components/SourceControls";
+import { CheckTrackedButton, DeleteTrackedButton, RefreshAllButton, SourceToggle, TrackedUrlForm } from "@/components/SourceControls";
 import { getCatalog } from "@/lib/data";
 import { formatAge, formatTL, KIND_LABELS, SOURCE_LABELS, variantLabel } from "@/lib/format";
 import { DAY_MS } from "@/lib/pricing/stats";
 import { sourceNameFromUrl } from "@/lib/sources/http";
-import { getSourceStatuses, getTrackedUrls } from "@/lib/sourcesData";
+import { UnmatchedList } from "@/components/UnmatchedList";
+import { getSourceStatuses, getTrackedUrls, getUnmatchedProducts } from "@/lib/sourcesData";
 
 export const dynamic = "force-dynamic";
 /** Linkleri kontrol etmek birkaç siteyi sırayla okur; ücretsiz Vercel planında üst sınır 60 sn */
@@ -15,11 +16,17 @@ export const metadata: Metadata = { title: "Kaynaklar" };
 const DESCRIPTIONS: Record<string, string> = {
   getmobil: "Yenilenmiş cihaz satış fiyatları. Katalogdaki her model için Getmobil'deki ilanlar okunur.",
   vatan: "Vatan Bilgisayar'daki sıfır cihaz fiyatları (Apple, Samsung, Xiaomi kategorileri).",
+  turkcell: "Turkcell Pasaj'daki sıfır cihaz fiyatları.",
   tracked: "Senin eklediğin ürün sayfaları (ör. apple.com/tr, samsung.com/tr).",
 };
 
 export default async function KaynaklarPage() {
-  const [catalog, statuses, tracked] = await Promise.all([getCatalog(), getSourceStatuses(), getTrackedUrls()]);
+  const [catalog, statuses, tracked, unmatched] = await Promise.all([
+    getCatalog(),
+    getSourceStatuses(),
+    getTrackedUrls(),
+    getUnmatchedProducts(),
+  ]);
   const now = Date.now();
   const age = (t: number | null) => (t ? formatAge((now - t) / DAY_MS) : "hiç çalışmadı");
 
@@ -38,6 +45,8 @@ export default async function KaynaklarPage() {
           fiyatı ekle&rdquo; kutusundan ya da Piyasa sayfasından elle gir.
         </p>
       </header>
+
+      <RefreshAllButton />
 
       <section className="grid gap-3 sm:grid-cols-2">
         {statuses.map((s) => (
@@ -61,6 +70,17 @@ export default async function KaynaklarPage() {
             <SourceToggle source={s.id} enabled={s.enabled} />
           </div>
         ))}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="eyebrow text-muted">Katalogda olmayan telefonlar</h2>
+          <p className="mt-1 text-sm text-muted">
+            Mağazalarda görülen ama katalogda bulunmayan modeller. Kataloğa eklediğin modelin fiyatı bir sonraki güncellemede
+            gelir ve alış ekranında çıkar.
+          </p>
+        </div>
+        <UnmatchedList items={unmatched} />
       </section>
 
       <TrackedUrlForm catalog={catalog} />

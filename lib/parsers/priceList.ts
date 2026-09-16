@@ -154,7 +154,13 @@ export function parsePriceList(
     if (pairs.length === 0) pairs.push({ spec: null, price: null });
     // Aynı satırda birden fazla çift varsa hafızası olmayanlar gürültüdür (OCR hatası gibi)
     const withSpec = pairs.filter((p) => p.spec);
-    const usable = pairs.length > 1 && withSpec.length > 0 ? withSpec : pairs;
+    const usable =
+      pairs.length > 1 && withSpec.length > 0
+        ? withSpec
+        : pairs.length > 1
+          ? // Hiçbirinde hafıza yok: listelerde fiyat en sonda yazılır, öncekiler okuma gürültüsüdür
+            [pairs[pairs.length - 1]]
+          : pairs;
 
     for (const p of usable) {
       const { variant, status } = resolveVariant(found.model, p.spec);

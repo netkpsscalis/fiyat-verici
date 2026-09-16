@@ -108,6 +108,26 @@ export function aliasesFor(m: CatalogModel): Alias[] {
     .map((s) => ({ modelId: m.id, brandId: m.brandId, ...s }));
 }
 
+/**
+ * Resimden okumada karışan harf-rakam çiftleri. "ASS" aslında "A55", "l3" aslında "13" olabilir.
+ * Bir parçanın olası doğru yazımlarını üretir (en fazla 2 değişiklik).
+ */
+const OCR_SWAPS: Record<string, string> = { s: "5", o: "0", i: "1", l: "1", b: "8", z: "2", g: "6", q: "9", a: "4" };
+
+export function ocrVariants(token: string): string[] {
+  const positions = [...token].map((c, i) => (OCR_SWAPS[c] ? i : -1)).filter((i) => i >= 0);
+  if (positions.length === 0 || positions.length > 4) return [];
+  const out = new Set<string>();
+  const swap = (t: string, i: number) => t.slice(0, i) + OCR_SWAPS[t[i]] + t.slice(i + 1);
+  for (const i of positions) {
+    const one = swap(token, i);
+    out.add(one);
+    for (const j of positions) if (j > i) out.add(swap(one, j));
+  }
+  out.delete(token);
+  return [...out].slice(0, 8);
+}
+
 export interface ModelMatch {
   model: CatalogModel;
   /** Satırda modelin geçtiği parça aralığı [start, end) */
@@ -124,7 +144,7 @@ export function createMatcher(models: CatalogModel[], learned: { alias: string; 
     if (m) aliases.push({ modelId: m.id, brandId: m.brandId, tokens: tokenize(l.alias), contextOnly: false, learned: true });
   }
 
-  return function match(tokens: string[], brandContext: string | null): ModelMatch | null {
+  function search(tokens: string[], brandContext: string | null): (ModelMatch & { len: number; learned: boolean }) | null {
     let best: (ModelMatch & { len: number; learned: boolean }) | null = null;
     for (const a of aliases) {
       if (a.contextOnly && a.brandId !== brandContext) continue;
@@ -147,7 +167,21 @@ export function createMatcher(models: CatalogModel[], learned: { alias: string; 
         if (better) best = { model: byId.get(a.modelId)!, start: i, end: i + len, len, learned: !!a.learned };
       }
     }
-    return best ? { model: best.model, start: best.start, end: best.end } : null;
+    return best;
+  }
+
+  return function match(tokens: string[], brandContext: string | null): ModelMatch | null {
+    const direct = search(tokens, brandContext);
+    if (direct) return { model: direct.model, start: direct.start, end: direct.end };
+
+    // Resimden okuma hatası olabilir: karışan harfleri rakamla deneyip tekrar ara
+    for (let i = 0; i < tokens.length; i++) {
+      for (const fixed of ocrVariants(tokens[i])) {
+        const hit = search([...tokens.slice(0, i), fixed, ...tokens.slice(i + 1)], brandContext);
+        if (hit) return { model: hit.model, start: hit.start, end: hit.end };
+      }
+    }
+    return null;
   };
 }
 

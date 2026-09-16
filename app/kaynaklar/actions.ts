@@ -1,13 +1,14 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCatalog } from "@/lib/data";
 import { db, schema } from "@/lib/db/client";
 import { WARRANTY_TYPES } from "@/lib/db/schema";
-import { runGetmobil, runTracked, runVatan, SOURCES } from "@/lib/sources/run";
+import { runGetmobil, runTracked, runTurkcell, runVatan, SOURCES } from "@/lib/sources/run";
 import type { ActionResult } from "@/lib/types";
+import { modelId as buildModelId, slug, variantId as buildVariantId } from "@/data/seed/devices";
 
 const trackedInput = z.object({
   variantId: z.string().min(1, "Model ve hafıza seç."),
@@ -58,6 +59,21 @@ export async function toggleSource(source: string, enabled: boolean): Promise<Ac
   return { ok: true, data: undefined };
 }
 
+/** Hızlı güncelleme: mağaza fiyatları, takip linkleri ve kendi işlemlerinden öğrenme. */
+export async function refreshAll(): Promise<ActionResult<{ message: string }>> {
+  const { recalculateCalibration } = await import("@/lib/calibration");
+  const v = await runVatan();
+  const t = await runTurkcell();
+  const links = await runTracked();
+  const cal = await recalculateCalibration();
+  revalidatePath("/kaynaklar");
+  revalidatePath("/piyasa");
+  const parts = [`Vatan: ${v.count}`, `Turkcell: ${t.count}`];
+  if (links.count) parts.push(`Linkler: ${links.count}`);
+  parts.push(cal.samples >= 3 ? `Düzeltme: ×${cal.factor} (${cal.samples} işlem)` : "Düzeltme: yeterli işlem yok");
+  return { ok: true, data: { message: parts.join(" · ") } };
+}
+
 /** Bakılan cihazın otomatik kaynaklarını hemen yeniler: Getmobil, Epey satıcı fiyatları ve takip linkleri. */
 export async function refreshSources(input: { modelId: string; variantId?: string | null }): Promise<ActionResult<{ message: string }>> {
   const modelId = z.string().min(1).parse(input.modelId);
@@ -70,11 +86,61 @@ export async function refreshSources(input: { modelId: string; variantId?: strin
   parts.push(`Getmobil: ${g.ok ? (g.count ? `${g.count} hafıza` : "bu model yok") : g.message}`);
 
   const v = await runVatan();
-  parts.push(`Vatan: ${v.ok ? v.message : v.message}`);
+  parts.push(`Vatan: ${v.message}`);
+  const tc = await runTurkcell();
+  parts.push(`Turkcell: ${tc.message}`);
 
   const t = await runTracked({ variantIds: variantId ? [variantId] : model.variants.map((v) => v.id) });
   if (t.count || !t.ok) parts.push(`Linkler: ${t.message}`);
 
   revalidatePath("/piyasa");
   return { ok: true, data: { message: parts.join(" · ") } };
+}
+
+const catalogInput = z.object({
+  unmatchedId: z.number().int().optional(),
+  brandId: z.enum(["apple", "samsung", "xiaomi"]),
+  name: z.string().trim().min(2, "Model adı yaz.").max(60),
+  ramGb: z.number().int().min(1).max(32).nullable(),
+  storageGb: z.number().int().min(16).max(2048),
+});
+
+/** Kaynakta görülen yeni bir telefonu kataloğa ekler. */
+export async function addModelToCatalog(input: z.input<typeof catalogInput>): Promise<ActionResult<{ message: string }>> {
+  const parsed = catalogInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Bilgiler eksik." };
+  const d = parsed.data;
+  const id = buildModelId(d.brandId, d.name);
+  const variant = { ramGb: d.ramGb, storageGb: d.storageGb };
+  const vId = buildVariantId(id, variant);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(schema.models)
+      .values({
+        id,
+        brandId: d.brandId,
+        name: d.name,
+        series: d.name.split(" ")[0],
+        releaseYear: new Date().getFullYear(),
+        family: d.brandId === "apple" ? "iphone" : "android",
+        hasBatteryHealth: d.brandId === "apple",
+        sort: 0,
+      })
+      .onConflictDoNothing();
+    await tx.insert(schema.variants).values({ id: vId, modelId: id, ...variant }).onConflictDoNothing();
+    // Aynı modelin diğer renkleri/kaynakları da listeden düşsün
+    await tx.delete(schema.unmatchedProducts).where(like(schema.unmatchedProducts.name, `%${slug(d.name).replace(/-/g, " ")}%`));
+    if (d.unmatchedId) await tx.delete(schema.unmatchedProducts).where(eq(schema.unmatchedProducts.id, d.unmatchedId));
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, data: { message: `${d.name} kataloğa eklendi. Bir sonraki güncellemede fiyatı gelecek.` } };
+}
+
+/** Bu ürünü bir daha gösterme (telefon değilse ya da ilgilenmiyorsan). */
+export async function dismissUnmatched(id: number): Promise<ActionResult> {
+  await db.delete(schema.unmatchedProducts).where(eq(schema.unmatchedProducts.id, z.number().int().parse(id)));
+  revalidatePath("/kaynaklar");
+  return { ok: true, data: undefined };
 }

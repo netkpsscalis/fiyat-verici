@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { catalog, modelId, parseVariant, variantId } from "@/data/seed/devices";
 import type { CatalogModel } from "@/lib/types";
-import { createMatcher, tokenize } from "./normalize";
+import { createMatcher, ocrVariants, tokenize } from "./normalize";
 import { detectWarranty, parsePriceList, parsePriceToken } from "./priceList";
 
 // Testler gerçek başlangıç kataloğuyla çalışır
@@ -58,6 +58,15 @@ describe("model eşleştirme", () => {
     expect(match("15 pro 128")).toBeNull();
     expect(match("15 pro 128", "apple")).toBe("iPhone 15 Pro");
     expect(match("14 12/256", "xiaomi")).toBe("Xiaomi 14");
+  });
+});
+
+describe("ocrVariants", () => {
+  it("karışan harflerin rakam karşılıklarını dener", () => {
+    expect(ocrVariants("ass")).toContain("a55");
+    expect(ocrVariants("l3")).toContain("13");
+    expect(ocrVariants("pro")).toContain("pr0");
+    expect(ocrVariants("15")).toEqual([]);
   });
 });
 
@@ -134,6 +143,16 @@ Nokia 3310 2.500`;
   it("katalogda olmayan modeli ayrı gösterir", () => {
     const r = rows.find((x) => x.raw.startsWith("Nokia"));
     expect(r).toMatchObject({ status: "no_model", price: 2_500 });
+  });
+
+  it("resimden okuma hatasını tolere eder: ASS → A55, fazladan sayıyı atar", () => {
+    const r = parsePriceList(`SAMSUNG
+ASS 8/128 15.250
+REDMI NOTE 13 PRO 84256 13.750`, models);
+    expect(r[0]).toMatchObject({ modelName: "Galaxy A55", variantId: "samsung-galaxy-a55-8-128", price: 15_250 });
+    const redmi = r.filter((x) => x.modelName === "Redmi Note 13 Pro");
+    expect(redmi).toHaveLength(1);
+    expect(redmi[0].price).toBe(13_750);
   });
 
   it("öğrenilmiş takma adı kullanır", () => {

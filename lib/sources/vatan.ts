@@ -6,6 +6,7 @@ import { createMatcher, tokenize } from "@/lib/parsers/normalize";
 import type { WarrantyType } from "@/lib/db/schema";
 import type { CatalogModel } from "@/lib/types";
 import { politeFetch } from "./http";
+import type { UnmatchedProduct } from "./unmatched";
 
 export const VATAN_CATEGORIES: Record<string, string> = {
   apple: "https://www.vatanbilgisayar.com/apple/cep-telefonu-modelleri/",
@@ -78,12 +79,17 @@ export function matchVatanProducts(
   products: VatanProduct[],
   models: CatalogModel[],
   brandId: string,
-): VatanResult[] {
+): { matched: VatanResult[]; unmatched: UnmatchedProduct[] } {
   const match = createMatcher(models);
   const best = new Map<string, VatanResult>();
+  const unmatched: UnmatchedProduct[] = [];
   for (const p of products) {
     const found = match(tokenize(p.name), brandId);
-    if (!found) continue;
+    if (!found) {
+      const size = storageFromName(p.name);
+      unmatched.push({ name: p.name, price: p.price, brandId, ramGb: size?.ramGb ?? null, storageGb: size?.storageGb ?? null });
+      continue;
+    }
     const size = storageFromName(p.name);
     const candidates = size
       ? found.model.variants.filter(
@@ -99,24 +105,26 @@ export function matchVatanProducts(
       }
     }
   }
-  return [...best.values()];
+  return { matched: [...best.values()], unmatched };
 }
 
 export async function fetchVatan(
   models: CatalogModel[],
   log: (m: string) => void = () => {},
-): Promise<VatanResult[]> {
-  const out: VatanResult[] = [];
+): Promise<{ results: VatanResult[]; unmatched: UnmatchedProduct[] }> {
+  const results: VatanResult[] = [];
+  const unmatched: UnmatchedProduct[] = [];
   for (const [brandId, url] of Object.entries(VATAN_CATEGORIES)) {
     try {
       const html = await politeFetch(url, { delayMs: 4000 });
       const products = parseVatanProducts(html);
-      const matched = matchVatanProducts(products, models.filter((m) => m.brandId === brandId), brandId);
-      out.push(...matched);
-      log(`  ${brandId}: ${products.length} üründen ${matched.length} eşleşti`);
+      const res = matchVatanProducts(products, models.filter((m) => m.brandId === brandId), brandId);
+      results.push(...res.matched);
+      unmatched.push(...res.unmatched);
+      log(`  ${brandId}: ${products.length} üründen ${res.matched.length} cihaz eşleşti`);
     } catch (e) {
       log(`  ${brandId}: ${(e as Error).message}`);
     }
   }
-  return out;
+  return { results, unmatched };
 }

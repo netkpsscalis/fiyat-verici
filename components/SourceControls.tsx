@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
-import { addTrackedUrl, checkTrackedNow, deleteTrackedUrl, toggleSource } from "@/app/kaynaklar/actions";
+import { addTrackedUrl, checkTrackedNow, deleteTrackedUrl, refreshAll, toggleSource } from "@/app/kaynaklar/actions";
 import { Chip } from "@/components/Chip";
 import { VariantSelect } from "@/components/VariantSelect";
 import type { WarrantyType } from "@/lib/db/schema";
@@ -21,6 +21,35 @@ export function SourceToggle({ source, enabled }: { source: string; enabled: boo
       />
       Her sabah otomatik oku
     </label>
+  );
+}
+
+/** Mağaza fiyatlarını, takip linklerini ve öğrenme düzeltmesini bir seferde yeniler. */
+export function RefreshAllButton() {
+  const [pending, start] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            setMessage(null);
+            const res = await refreshAll();
+            setMessage(res.ok ? res.data.message : res.error);
+          })
+        }
+        className="h-12 rounded-lg bg-ink px-5 font-semibold text-paper disabled:opacity-60"
+      >
+        {pending ? "Güncelleniyor…" : "Fiyatları şimdi güncelle"}
+      </button>
+      {message && (
+        <p role="status" className="text-sm text-muted">
+          {message}
+        </p>
+      )}
+    </div>
   );
 }
 

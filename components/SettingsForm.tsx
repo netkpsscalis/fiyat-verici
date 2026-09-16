@@ -2,9 +2,9 @@
 
 import clsx from "clsx";
 import { useState, useTransition } from "react";
-import { saveSettings } from "@/app/ayarlar/actions";
+import { recalibrate, saveSettings } from "@/app/ayarlar/actions";
 import { type Adjustment, FACTORS, GROUPS, overrideKey, type Overrides } from "@/lib/pricing/conditions";
-import { DEFAULT_SETTINGS, type PricingSettings } from "@/lib/pricing/settings";
+import { DEFAULT_SETTINGS, type PricingSettings, type SourceAdjust } from "@/lib/pricing/settings";
 
 const inputClass = "num h-11 w-24 rounded-lg border border-line bg-ground px-2 text-right text-lg font-bold";
 
@@ -46,6 +46,14 @@ function Field({
 
 const pctOf = (ratio: number) => Math.round(ratio * 1000) / 10;
 
+type SourceKey = keyof PricingSettings["sourceAdjust"];
+
+const SOURCE_ROWS: { key: SourceKey; label: string; help: string }[] = [
+  { key: "own_sell", label: "Kendi satışların", help: "Dükkanda sattığın fiyatlar. En güvenilir kaynak." },
+  { key: "used_listing", label: "2. el ilanlar (Sahibinden vb.)", help: "İlan fiyatında pazarlık payı vardır." },
+  { key: "refurb_retail", label: "Yenilenmiş cihaz fiyatları (Getmobil)", help: "Garantili, yenilenmiş perakende fiyatı." },
+];
+
 export function SettingsForm({ settings, overrides }: { settings: PricingSettings; overrides: Overrides }) {
   const [s, setS] = useState<PricingSettings>(settings);
   const [ov, setOv] = useState<Overrides>(overrides);
@@ -53,6 +61,8 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
   const [pending, start] = useTransition();
 
   const setM = (k: keyof PricingSettings["buyMargins"], v: number) => setS({ ...s, buyMargins: { ...s.buyMargins, [k]: v } });
+  const setAdjust = (key: SourceKey, patch: Partial<SourceAdjust>) =>
+    setS({ ...s, sourceAdjust: { ...s.sourceAdjust, [key]: { ...s.sourceAdjust[key], ...patch } } });
   const setN = (k: keyof PricingSettings["newSale"], v: number) => setS({ ...s, newSale: { ...s.newSale, [k]: v } });
 
   function setOverride(factorId: string, optionId: string, def: Adjustment, next: Partial<Adjustment>) {
@@ -63,6 +73,13 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
     if (merged.mode === def.mode && merged.value === def.value) delete copy[key];
     else copy[key] = merged;
     setOv(copy);
+  }
+
+  function runCalibration() {
+    start(async () => {
+      const res = await recalibrate();
+      setMessage(res.ok ? { tone: "ok", text: res.data.message } : { tone: "stop", text: res.error });
+    });
   }
 
   function save() {
@@ -88,26 +105,73 @@ export function SettingsForm({ settings, overrides }: { settings: PricingSetting
           <Field label="En az teklif · kâr payı" help="İlk söyleyeceğin fiyat" value={s.buyMargins.min} onChange={(v) => setM("min", v)} suffix="%" />
           <Field label="Cihaz başı en az kâr" value={s.minProfit} onChange={(v) => setS({ ...s, minProfit: v })} suffix="₺" step={50} />
           <Field
-            label="İlan pazarlık payı"
-            help="Sahibinden ilan fiyatından bu kadar düşülür"
-            value={s.listingDiscount}
-            onChange={(v) => setS({ ...s, listingDiscount: v })}
-            suffix="%"
-          />
-          <Field
-            label="Yenilenmiş fiyat oranı"
-            help="Getmobil gibi yenilenmiş satış fiyatının dükkandaki satış fiyatına oranı"
-            value={pctOf(s.refurbFactor)}
-            onChange={(v) => setS({ ...s, refurbFactor: v / 100 })}
-            suffix="%"
-          />
-          <Field
             label="Rakip alış oranı"
             help="Rakipler cihazı satış fiyatının yüzde kaçına alıyor"
             value={pctOf(s.buybackRatio)}
             onChange={(v) => setS({ ...s, buybackRatio: v / 100 })}
             suffix="%"
           />
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-line bg-paper px-4 py-4 lg:px-6">
+        <div>
+          <h2 className="font-display text-xl font-bold [font-stretch:105%]">2. el fiyat kaynakları</h2>
+          <p className="mt-1 text-sm text-muted">
+            Her kaynağın fiyatı, senin dükkanında satabileceğin fiyata çevrilir. Oran ne kadar düşükse teklifin o kadar düşer.
+            Yenilenmiş cihaz fiyatları garantili ve temizlenmiş cihaz fiyatı olduğu için dükkan 2. el fiyatının üstündedir.
+          </p>
+        </div>
+        <div className="divide-y divide-line">
+          {SOURCE_ROWS.map((row) => (
+            <div key={row.key} className="py-3">
+              <p className="font-medium">{row.label}</p>
+              <p className="text-sm text-muted">{row.help}</p>
+              <div className="mt-2 flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <span>Dükkan fiyatına oranı</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={Math.round(s.sourceAdjust[row.key].factor * 100)}
+                    onChange={(e) => setAdjust(row.key, { factor: e.target.valueAsNumber / 100 })}
+                    className="num h-10 w-20 rounded-lg border border-line bg-ground px-2 text-right text-base font-bold"
+                  />
+                  <span className="text-muted">%</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <span>Ağırlık</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step={0.1}
+                    value={s.sourceAdjust[row.key].weight}
+                    onChange={(e) => setAdjust(row.key, { weight: e.target.valueAsNumber })}
+                    className="num h-10 w-20 rounded-lg border border-line bg-ground px-2 text-right text-base font-bold"
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg bg-ground p-3">
+          <p className="font-medium">Kendi işlemlerinden öğrenme</p>
+          <p className="mt-1 text-sm text-muted">
+            Uygulama, önerdiği fiyatlarla senin gerçekten aldığın ve sattığın fiyatları karşılaştırır; sürekli yüksek ya da
+            düşük öneriyorsa kendini düzeltir. Şu anki düzeltme:{" "}
+            <strong className="text-ink">
+              ×{s.calibration.factor}
+              {s.calibration.samples ? ` (${s.calibration.samples} işlem)` : " (henüz yeterli işlem yok)"}
+            </strong>
+          </p>
+          <button
+            type="button"
+            onClick={runCalibration}
+            disabled={pending}
+            className="mt-2 h-10 rounded-lg border border-ink px-4 text-sm font-semibold disabled:opacity-60"
+          >
+            Şimdi hesapla
+          </button>
         </div>
       </section>
 

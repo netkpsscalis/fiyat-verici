@@ -36,6 +36,40 @@ const DEFAULT_WARRANTIES: { id: WarrantyType | null; label: string }[] = [
   { id: null, label: "Belirtilmedi" },
 ];
 
+/**
+ * Okuma öncesi görüntüyü hazırlar: 2 katına büyütür, gri tonlamaya çevirir ve
+ * eşikleme ile yazıyı keskinleştirir. Ekran görüntülerinde okuma belirgin düzelir.
+ */
+async function prepareImage(file: File): Promise<Blob | File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(3, Math.max(1, 1600 / bitmap.width));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = img.data;
+    let total = 0;
+    for (let i = 0; i < d.length; i += 4) total += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const mean = total / (d.length / 4);
+    for (let i = 0; i < d.length; i += 4) {
+      const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const v = gray > mean * 0.85 ? 255 : 0;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}
+
 export function PriceListImport({
   catalog,
   suppliers,
@@ -97,13 +131,16 @@ export function PriceListImport({
     setMessage(null);
     setOcr({ progress: 0 });
     try {
+      const prepared = await prepareImage(file);
       const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("tur", 1, {
+      const worker = await createWorker(["tur", "eng"], 1, {
         logger: (m: { status: string; progress: number }) => {
           if (m.status === "recognizing text") setOcr({ progress: m.progress });
         },
       });
-      const { data } = await worker.recognize(file);
+      // Liste görüntüleri düz metin blokudur; kelime araları korunur
+      await worker.setParameters({ tessedit_pageseg_mode: "6" as never, preserve_interword_spaces: "1" });
+      const { data } = await worker.recognize(prepared);
       await worker.terminate();
       const text = data.text.trim();
       if (!text) {
@@ -193,7 +230,7 @@ export function PriceListImport({
         </div>
 
         <label className="block">
-          <span className="text-sm font-semibold">WhatsApp listesini yapıştır</span>
+          <span className="text-sm font-semibold">Listeyi yapıştır ya da elle yaz (en doğru yol)</span>
           <textarea
             value={text}
             onChange={(e) => {
